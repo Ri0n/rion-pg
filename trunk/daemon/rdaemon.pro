@@ -8,6 +8,7 @@ QT -= gui
 TARGET = rdaemon
 CONFIG += console
 CONFIG -= app_bundle
+CONFIG += nostrip
 TEMPLATE = app
 SOURCES += main.cpp \
     rdaemonapp.cpp \
