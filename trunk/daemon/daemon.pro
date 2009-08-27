@@ -5,7 +5,7 @@ QT += network \
     sql \
     xml
 QT -= gui
-TARGET = daemon
+TARGET = rdaemon
 CONFIG += console
 CONFIG -= app_bundle
 TEMPLATE = app
