@@ -88,12 +88,13 @@ void RDaemonApp::doProcessDowload(QNetworkReply* report)
 void RDaemonApp::doProcessXMLRPC(XMLRPCRequest* request)
 {
 	QString method = request->method();
-	if (method == "last") { // it's better to make these checks in the daemon and set some "type" for request
+	if (method == "last") { // it's better to make these checks in the daemon and set some "type" for request or even make reqest of derived class
 		request->setValue(d->storage->getLast());
-	}
-	if (method == "update") {
+	} else if (method == "update") {
 		doNewRequest();
 		request->setValue(true); //FIXME we return return success response only after http request is complete.
+	} else {
+		// here is something for next version
 	}
 	request->dispatch();
 }
