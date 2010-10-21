@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/">
+        <file>defaulttheme.ui</file>
+    </qresource>
+</RCC>

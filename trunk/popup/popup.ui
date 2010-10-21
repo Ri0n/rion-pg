@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>Popup</class>
+ <widget class="QWidget" name="Popup">
+  <property name="windowTitle">
+   <string>Popup</string>
+  </property>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
