@@ -7,6 +7,7 @@
 #include <QWidget>
 #include <QVBoxLayout>
 #include <QPalette>
+#include <QLabel>
 
 class Popup::Private
 {
@@ -50,6 +51,20 @@ Popup::Popup(QWidget *parent, const QString &title, const QString &text) :
 	QVBoxLayout *layout = new QVBoxLayout;
 	setLayout(layout);
 	layout->addWidget(popupWidget);
+
+	QLabel *lblTitle = popupWidget->findChild<QLabel *>("lblTitle");
+	QLabel *lblText = popupWidget->findChild<QLabel *>("lblText");
+	QLabel *lblImage = popupWidget->findChild<QLabel *>("lblImage");
+	if (lblTitle) {
+		lblTitle->setText(title);
+	}
+	if (lblText) {
+		lblText->setText(text);
+	}
+	if (lblImage) {
+		lblImage->setStyleSheet("width:48px; height:48px;");
+		lblImage->setText("<img src=\":/juick.png\" width='48' height='48' />");
+	}
 
 	QPalette palette;
 	palette.setBrush(QPalette::Base, Qt::transparent);

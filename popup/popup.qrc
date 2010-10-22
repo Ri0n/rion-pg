@@ -1,5 +1,6 @@
 <RCC>
     <qresource prefix="/">
         <file>defaulttheme.ui</file>
+        <file>juick.png</file>
     </qresource>
 </RCC>
