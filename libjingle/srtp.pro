@@ -43,7 +43,8 @@ win32-msvc*:QMAKE_CFLAGS += /wd4701 /wd4702
 !exists($$SRTP_DIR/crypto/include/config.h) {
 	win32 {
 		SDW=$$replace(SRTP_DIR, /, \\)
-		system(copy $$SDW\\config.hw $$SDW\\crypto\\include\\config.h)
+		TPW=$$replace(THIRD_PARTY_DIR, /, \\)
+		system(copy $$TPW\\srtp_config.hmingw $$SDW\\crypto\\include\\config.h)
 	} else {
 		message(Configuring SRTP)
 		system(cd $$SRTP_DIR; ./configure)|error(SRTP Configure failed. Can't continue)
