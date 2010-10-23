@@ -104,7 +104,7 @@ SOURCES += talk/base/asyncfile.cc \
 	talk/xmllite/xmlnsstack.cc \
 	talk/xmllite/xmlparser.cc \
 	talk/xmllite/xmlprinter.cc \
-	talk/xmpp/constants.cc \
+	talk/xmpp/xmppconstants.cc \
 	talk/xmpp/jid.cc \
 	talk/xmpp/ratelimitmanager.cc \
 	talk/xmpp/saslmechanism.cc \
@@ -324,4 +324,4 @@ DEFINES += FEATURE_ENABLE_VOICEMAIL \
 INCLUDEPATH += $$EXPAT_DIR \
 	$$SRTP_DIR/include \
 	$$SRTP_DIR/crypto/include
-	
+

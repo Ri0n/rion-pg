@@ -2,6 +2,7 @@ THIRD_PARTY_DIR = talk/third_party
 
 EXPAT_DIR = $$THIRD_PARTY_DIR/expat-2.0.1
 SRTP_DIR = $$THIRD_PARTY_DIR/srtp
+EXAMPLES_DIR = talk/examples
 
 DEFINES += LOGGING=1 \
 	FEATURE_ENABLE_SSL \

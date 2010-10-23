@@ -27,7 +27,7 @@ hostinfo               = unknown
 /usr/bin/oslevel       = unknown
 /bin/universe          = unknown
 
-PATH: /usr/lib64/ccache/bin
+PATH: /usr/local/Trolltech/Qt-4.7.0/bin
 PATH: /usr/local/bin
 PATH: /usr/bin
 PATH: /bin
@@ -36,7 +36,6 @@ PATH: /usr/x86_64-pc-linux-gnu/gcc-bin/4.5.1
 PATH: /usr/games/bin
 PATH: /usr/GNUstep/System/Tools
 PATH: /usr/GNUstep/Local/Tools
-PATH: ~/bin
 
 
 ## ----------- ##
@@ -48,7 +47,7 @@ configure:2110: result: x86_64-unknown-linux-gnu
 configure:2118: checking host system type
 configure:2132: result: x86_64-unknown-linux-gnu
 configure:2186: checking for gcc
-configure:2202: found /usr/lib64/ccache/bin/gcc
+configure:2202: found /usr/bin/gcc
 configure:2212: result: gcc
 configure:2456: checking for C compiler version
 configure:2459: gcc --version </dev/null >&5
@@ -286,7 +285,7 @@ configure:4556: result: yes
 configure:4591: checking for dlfcn.h
 configure:4598: result: yes
 configure:4663: checking for g++
-configure:4679: found /usr/lib64/ccache/bin/g++
+configure:4679: found /usr/bin/g++
 configure:4689: result: g++
 configure:4705: checking for C++ compiler version
 configure:4708: g++ --version </dev/null >&5
@@ -400,7 +399,7 @@ configure: failed program was:
 configure:4879: g++ -c -g -O2  conftest.cc >&5
 conftest.cc:20:31: error: 'void std::exit(int)' should have been declared inside 'std'
 In file included from conftest.cc:21:0:
-/usr/include/stdlib.h:544:71: error: declaration of 'void std::exit(int) throw ()' throws different exceptions
+/usr/include/stdlib.h:544:70: error: declaration of 'void std::exit(int) throw ()' throws different exceptions
 conftest.cc:20:17: error: from previous declaration 'void std::exit(int)'
 configure:4885: $? = 1
 configure: failed program was:
@@ -602,7 +601,6 @@ configure:6058: found /usr/bin/strip
 configure:6069: result: strip
 configure:6345: checking if gcc supports -fno-rtti -fno-exceptions
 configure:6363: gcc -c -g -O2  -fno-rtti -fno-exceptions conftest.c >&5
-cc1: warning: command line option "-fno-rtti" is valid for C++/ObjC++ but not for C
 cc1: warning: command line option "-fno-rtti" is valid for C++/ObjC++ but not for C
 configure:6367: $? = 0
 configure:6380: result: no
