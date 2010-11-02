@@ -8,6 +8,9 @@
 #include <QVBoxLayout>
 #include <QPalette>
 #include <QLabel>
+#include <QApplication>
+#include <QDesktopWidget>
+#include <QResizeEvent>
 
 class Popup::Private
 {
@@ -49,6 +52,7 @@ Popup::Popup(QWidget *parent, const QString &title, const QString &text) :
 	QWidget *popupWidget = loader.load(&Private::uiBuffer, this);
 	Private::uiBuffer.close();
 	QVBoxLayout *layout = new QVBoxLayout;
+	layout->setMargin(0);
 	setLayout(layout);
 	layout->addWidget(popupWidget);
 
@@ -70,7 +74,6 @@ Popup::Popup(QWidget *parent, const QString &title, const QString &text) :
 	palette.setBrush(QPalette::Base, Qt::transparent);
 	setPalette(palette);
 	setAttribute(Qt::WA_TranslucentBackground, true);
-	//qDebug() << popupWidget->metaObject()->className();
 }
 
 Popup::~Popup()
@@ -94,4 +97,25 @@ void Popup::changeEvent(QEvent *e)
 void Popup::mousePressEvent(QMouseEvent *event)
 {
 	close();
+}
+
+void Popup::resizeEvent (QResizeEvent * event)
+{
+	QRect dRect = QApplication::desktop()->availableGeometry();
+	QRect pRect(QPoint(0,0), event->size());
+	if (Private::alignment & Qt::AlignLeft) {
+		if (Private::alignment & Qt::AlignTop) {
+			pRect.moveTopLeft(dRect.topLeft() + QPoint(0, Private::curPos));
+		} else {
+			pRect.moveBottomLeft(dRect.bottomLeft() - QPoint(0, Private::curPos));
+		}
+	} else {
+		if (Private::alignment & Qt::AlignTop) {
+			pRect.moveTopRight(dRect.topRight() + QPoint(0, Private::curPos));
+		} else {
+			pRect.moveBottomRight(dRect.bottomRight() - QPoint(0, Private::curPos));
+		}
+	}
+	Private::curPos += (pRect.height() + 10);
+	move(pRect.topLeft());
 }

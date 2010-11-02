@@ -21,6 +21,7 @@ public:
 protected:
     void changeEvent(QEvent *e);
 	void mousePressEvent(QMouseEvent *event);
+	void resizeEvent (QResizeEvent * event);
 
 private:
     Ui::Popup *ui;
