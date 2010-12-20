@@ -17,9 +17,7 @@ public:
 	bool listen();
 
 private:
-	std::map<int, SocketPtr> _listeners;
-	std::map<int, SocketPtr> _clients;
-	int _listenEpollFd;
+	SocketMap _listeners;
 };
 
 } // namespace rdns

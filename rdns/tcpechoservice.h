@@ -10,6 +10,7 @@ class TCPEchoService : public Service
 {
 public:
 	TCPEchoService(SocketPtr);
+	void acceptConnection();
 };
 
 } // namespace rdns

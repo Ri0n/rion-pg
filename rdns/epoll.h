@@ -10,18 +10,19 @@ namespace rdns
 
 class Epoll : public Reactor
 {
+	friend class Reactor;
 public:
 	const static int MaxEvents = 100;
 
-    Epoll();
-	~Epoll();
-
 	bool addWatch(SocketPtr);
 	int wait();
-	epoll_event* event(int);
 
+
+protected:
+	Epoll();
 
 private:
+
 	epoll_event events[MaxEvents];
 };
 

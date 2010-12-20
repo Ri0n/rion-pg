@@ -24,7 +24,7 @@ UDPEchoService::UDPEchoService(SocketPtr socket)
 	: Service(socket)
 {
 	socket->setReadyReadHandler(CallbackPtr(
-									new UDPEchoServiceReadyReadCallback(this)));
+								new UDPEchoServiceReadyReadCallback(this)));
 }
 
 void UDPEchoService::onReadyRead()

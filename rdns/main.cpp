@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include "daemon.h"
+#include "reactor.h"
 #include "dnsservice.h"
 #include "tcpechoservice.h"
 #include "udpechoservice.h"
@@ -14,6 +15,7 @@ int main(int argc, char *argv[])
 {
 	auto_ptr<rdns::Daemon> daemon(new rdns::Daemon());
 	vector<rdns::ServicePtr> services;
+	rdns::Reactor::setDefaultType(rdns::Reactor::EpollType);
 
 	string arg, host, scheme, proto;
 	for (int i = 1; i < argc; i++) {
