@@ -46,6 +46,7 @@ void DNSService::onReadyRead()
 			cout << std::setw(2) << (int)buf[i] << " ";
 		}
 		cout << std::endl;
+		transaction->write("hello", 5);
 	}
 }
 

@@ -21,7 +21,6 @@ class Socket : public IODevice
 public:
 	Socket() : IODevice() { };
 	Socket(const char *ip, unsigned int port);
-	virtual ~Socket();
 	bool isValid() const;
 	virtual bool listen();
 	virtual bool isStreamed() const;

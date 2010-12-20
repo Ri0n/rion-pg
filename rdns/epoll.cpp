@@ -34,8 +34,16 @@ int Epoll::wait()
 	for (int i = 0; i < nfds; i++) {
 		SocketIterator si = _watches.find(events[i].data.fd);
 		if (si != _watches.end()) {
+			cout << "received events: " << events[i].events << "\n";
+			if (events[i].events & (EPOLLHUP | EPOLLERR | EPOLLRDHUP)) {
+				(*si).second->setReadyOnly(true); // maybe something like aboutToClose ?
+			}
 			if (events[i].events & EPOLLIN) {
 				(*si).second->setReadyRead();
+			}
+			if (events[i].events & (EPOLLHUP | EPOLLERR | EPOLLRDHUP)) {
+				(*si).second->close();
+				_watches.erase((*si).first);
 			}
 		}
 		else {

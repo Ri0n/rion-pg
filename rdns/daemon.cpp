@@ -32,7 +32,6 @@ SocketPtr Daemon::addListener(const char *protoName, const char *ip, unsigned in
 bool Daemon::listen()
 {
 	int amountListen = 0;
-	int nfds;
 	Reactor* reactor = Reactor::instance();
 
 	if (!reactor->isValid()) {
@@ -52,7 +51,10 @@ bool Daemon::listen()
 	cout << "start listening\n";
 	while (true) {
 		cout << "waiting for events\n";
-		nfds = reactor->wait();
+		if (reactor->wait() == -1) {
+			perror("rector error");
+		}
+
 	}
 
 	return true;

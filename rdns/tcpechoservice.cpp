@@ -22,10 +22,10 @@ class TCPEchoServiceResponder : public Callback
 {
 public:
 	TCPEchoServiceResponder(SocketPtr socket)
-		: socket(socket) { }
+		: socket(socket.get()) { } // don't allow recursive links to allow "gc" to its job =)
 
 	void call() {
-		std::string answer = "You send: ";
+		std::string answer = "You sent: ";
 		char buf[10124];
 		int cnt = socket->read(buf, 1024);
 		answer += std::string(buf).substr(0, cnt); // lets consider that was a string =)
@@ -33,7 +33,7 @@ public:
 	}
 
 private:
-	SocketPtr socket;
+	Socket* socket;
 };
 
 

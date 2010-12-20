@@ -25,12 +25,6 @@ Socket::Socket(const char *ip, unsigned int port)
 	}
 }
 
-Socket::~Socket()
-{
-	cout << "socket " << toString() <<" destroyed\n";
-	close(_fd);
-}
-
 bool Socket::isValid() const
 {
 	return IODevice::isValid() && _addr.sin_port != 0;
