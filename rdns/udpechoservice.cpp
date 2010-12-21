@@ -29,7 +29,7 @@ UDPEchoService::UDPEchoService(SocketPtr socket)
 
 void UDPEchoService::onReadyRead()
 {
-	unsigned char buf[1024];
+	char buf[1024];
 	SocketPtr client = socket->accept();
 	ssize_t cnt = socket->read(buf, 1024);
 	if (cnt == -1) {
@@ -41,6 +41,8 @@ void UDPEchoService::onReadyRead()
 			cout << std::setw(2) << (int)buf[i] << " ";
 		}
 		cout << std::endl;
-		client->write("hello\n", 6);
+		std::string recvStr(buf);
+		std::string repl = std::string("You sent: ") + recvStr.substr(0, cnt);
+		client->write(repl.c_str(), repl.size());
 	}
 }
