@@ -31,7 +31,6 @@ SOURCES += main.cpp \
 	dnsservice.cpp \
 	tcpechoservice.cpp \
 	udpechoservice.cpp \
-    udptransaction.cpp \
     dnsmessage.cpp
 
 HEADERS += \
@@ -52,5 +51,4 @@ HEADERS += \
 	tcpechoservice.h \
 	udpechoservice.h \
     functionoid.h \
-    udptransaction.h \
     dnsmessage.h

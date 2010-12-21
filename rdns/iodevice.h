@@ -12,6 +12,7 @@ class IODevice
 {
 public:
     IODevice();
+	IODevice(int fd);
 	virtual ~IODevice();
 	int fd() const;
 	virtual bool isValid() const;

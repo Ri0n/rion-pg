@@ -10,6 +10,7 @@ class UDPSocket : public Socket
 {
 public:
 	UDPSocket(const char *ip, unsigned int port);
+	UDPSocket(int fd, sockaddr_in addr);
 	bool listen();
 	SocketPtr accept();
 };

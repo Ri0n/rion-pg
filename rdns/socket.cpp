@@ -1,4 +1,5 @@
 #include <iostream>
+#include <cstdio>
 #include <sstream>
 #include <arpa/inet.h>
 #include <fcntl.h>
@@ -25,9 +26,37 @@ Socket::Socket(const char *ip, unsigned int port)
 	}
 }
 
+Socket::Socket(int fd, sockaddr_in addr)
+	: IODevice(fd)
+	, _addr(addr)
+{
+
+}
+
 bool Socket::isValid() const
 {
 	return IODevice::isValid() && _addr.sin_port != 0;
+}
+
+ssize_t Socket::write(const void *buf, size_t count) const
+{
+	cout << "writing to socket: " << toString() << endl;
+	return IODevice::write(buf, count);
+}
+
+ssize_t Socket::read(void *buf, size_t count)
+{
+	cout << "reading from socket: " << toString() << endl;
+	return IODevice::read(buf, count);
+}
+
+bool Socket::connect()
+{
+	if (::connect(_fd, (sockaddr*)&_addr, sizeof(_addr)) == -1) {
+		perror("Failed to connect");
+		return false;
+	}
+	return true;
 }
 
 bool Socket::listen()

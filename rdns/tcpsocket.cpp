@@ -21,19 +21,17 @@ TCPSocket::TCPSocket(const char *ip, unsigned int port)
 	: Socket(ip, port)
 {
 	if (_addr.sin_port) { // 0 in case of error
-		_fd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK,
-							getprotobyname("TCP")->p_proto);
+		_fd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
 		if (_fd == -1) {
 			perror("Failed to create socket");
 		}
 	}
 }
 
-TCPSocket::TCPSocket(int fd, sockaddr *addr)
-	: Socket()
+TCPSocket::TCPSocket(int fd, sockaddr_in addr)
+	: Socket(fd, addr)
 {
-	_fd = fd;
-	_addr = *((sockaddr_in *)addr);
+
 }
 
 bool TCPSocket::listen()
@@ -59,15 +57,15 @@ bool TCPSocket::isStreamed() const
 
 SocketPtr TCPSocket::accept()
 {
-	sockaddr addr;
+	sockaddr_in addr;
 	socklen_t addrlen = sizeof(addr);
-	int clientSock = ::accept(_fd, &addr, &addrlen);
+	int clientSock = ::accept(_fd, (sockaddr*)&addr, &addrlen);
 	if (clientSock == -1 || addrlen == 0) {
 		perror("Failed to accept connection");
 		return SocketPtr();
 	}
 
-	SocketPtr sock(new TCPSocket(clientSock, &addr));
+	SocketPtr sock(new TCPSocket(clientSock, addr));
 	sock->setBlocking(false);
 
 	cout << "Accepted connection from: " << sock->toString() << endl;

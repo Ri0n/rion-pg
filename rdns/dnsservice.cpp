@@ -2,7 +2,6 @@
 #include <iomanip>
 #include <iostream>
 #include "dnsservice.h"
-#include "udptransaction.h"
 #include "rr.h"
 
 using namespace rdns;
@@ -33,8 +32,8 @@ DNSService::DNSService(SocketPtr socket)
 void DNSService::onReadyRead()
 {
 	unsigned char buf[1024];
-	SocketPtr transaction = socket->accept();
-	ssize_t cnt = transaction->read(buf, 1024);
+	SocketPtr client = socket->accept();
+	ssize_t cnt = socket->read(buf, 1024);
 	if (cnt == -1) {
 		cout << "hm\n";
 		perror("failed to read data from udp");
@@ -46,7 +45,7 @@ void DNSService::onReadyRead()
 			cout << std::setw(2) << (int)buf[i] << " ";
 		}
 		cout << std::endl;
-		transaction->write("hello", 5);
+		client->write("hello", 5);
 	}
 }
 

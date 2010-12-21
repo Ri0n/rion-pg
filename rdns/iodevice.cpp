@@ -12,6 +12,15 @@ using std::endl;
 IODevice::IODevice()
 	: _fd(-1)
 	, _readyRead(false)
+	, _readOnly(false)
+{
+
+}
+
+IODevice::IODevice(int fd)
+	: _fd(fd)
+	, _readyRead(false)
+	, _readOnly(false)
 {
 
 }
