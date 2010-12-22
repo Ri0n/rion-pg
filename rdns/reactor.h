@@ -24,6 +24,7 @@ public:
 	static void setDefaultType(ReactorType);
 
 	virtual bool addWatch(SocketPtr) = 0;
+	virtual void removeWatch(int fd) = 0;
 	virtual int wait() = 0;
 
 protected:

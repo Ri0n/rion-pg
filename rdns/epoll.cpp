@@ -28,6 +28,11 @@ bool Epoll::addWatch(SocketPtr sock)
 	return true;
 }
 
+void Epoll::removeWatch(int fd)
+{
+	_watches.erase(fd);
+}
+
 int Epoll::wait()
 {
 	int nfds = epoll_wait(_fd, events, MaxEvents, -1);
@@ -42,8 +47,7 @@ int Epoll::wait()
 				(*si).second->setReadyRead();
 			}
 			if (events[i].events & (EPOLLHUP | EPOLLERR | EPOLLRDHUP)) {
-				(*si).second->close();
-				_watches.erase((*si).first);
+				_watches.erase((*si).first); // destructor will close internal socket
 			}
 		}
 		else {

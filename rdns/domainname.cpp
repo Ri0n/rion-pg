@@ -7,13 +7,16 @@ DomainName::DomainName()
 {
 }
 
-size_t DomainName::fromByteArray(unsigned char *buf, size_t count)
+size_t DomainName::fromByteArray(const unsigned char *buf, size_t count)
 {
-	_name = (char *)buf;
+	_name.reserve(count > 255 ? 255 : count); // 255 name limit by rfc
 	int c = 0;
 	while (count - c > 0 && buf[c]) {
-		c += buf[c];
-		_name[c] = '.';
+		_name += std::string((const char*)&buf[c + 1], (size_t)buf[c]);
+		c += buf[c] + 1;
+		if (buf[c]) {
+			_name += '.';
+		}
 	}
 	return c;
 }

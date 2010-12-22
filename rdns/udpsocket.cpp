@@ -14,9 +14,9 @@ using std::endl;
 using std::string;
 
 UDPSocket::UDPSocket(const char *ip, unsigned int port)
-	: Socket(ip, port)
+	: Socket()
 {
-	if (_addr.sin_port) { // 0 in case of error
+	if (makeAddress(ip, port, &_addr)) {
 		_fd = socket(AF_INET, SOCK_DGRAM | SOCK_NONBLOCK, 0);
 		if (_fd == -1) {
 			perror("Failed to create socket");
@@ -24,7 +24,7 @@ UDPSocket::UDPSocket(const char *ip, unsigned int port)
 	}
 }
 
-UDPSocket::UDPSocket(int fd, sockaddr_in addr)
+UDPSocket::UDPSocket(int fd, const sockaddr_in &addr)
 	: Socket(fd, addr)
 {
 
@@ -42,28 +42,52 @@ bool UDPSocket::listen()
 	return true;
 }
 
-SocketPtr UDPSocket::accept()
+ssize_t UDPSocket::write(const void *buf, size_t count) const
+{
+	dump("sending datagram: ", (unsigned char *)buf, count);
+	return sendto(_fd, buf, count, 0, (sockaddr*) &clientAddr, sizeof(clientAddr));
+}
+
+// If param `client` is self then self socket will be connected to client.
+// Otherwise new UDP socket will be created and "connected" to client,
+// `client` param socket will be replaced with new one, so bear this in mind.
+bool UDPSocket::accept(SocketPtr &client)
 {
 	socklen_t addrLen = sizeof(_addr);
 	sockaddr_in addr;
-	int fd;
 	//cout << "recvfrom " << source->fd() << endl;
 	if (recvfrom(_fd, 0, 0, MSG_PEEK, (sockaddr*)&addr, &addrLen) == -1) {
 		perror("Failed to retrieve UDP request info");
 	}
 	else {
-		fd = socket(AF_INET, SOCK_DGRAM | SOCK_NONBLOCK, 0);
-		if (fd == -1) {
-			perror("Failed to create socket");
+		if (client.get() == this) { // connect self to client
+			clientAddr = addr;
+			return true;
 		}
-		else {
-			SocketPtr sock(new UDPSocket(fd, addr));
-			if (sock->connect()) {
-				cout << "Accepted new UDP connection from " << sock->toString() << endl;
+		else { // make new socket and store in client
+			int fd = socket(AF_INET, SOCK_DGRAM | SOCK_NONBLOCK, 0);
+			if (fd != -1) {
+				client = SocketPtr(new UDPSocket(fd, addr));
+				if (client->connect()) {
+					cout << "Accepted new UDP connection from " << client->toString() << endl;
+					return true;
+				}
 			}
-			return sock;
+			else {
+				perror("Failed to create socket");
+			}
 		}
 	}
-	return SocketPtr();
+	return false;
 }
 
+bool UDPSocket::connectTo(const sockaddr_in &addr)
+{
+	clientAddr = addr;
+	return true;
+}
+
+bool UDPSocket::connectTo(const char *ip, unsigned int port)
+{
+	return makeAddress(ip, port, &clientAddr);
+}

@@ -15,6 +15,7 @@ public:
 	const static int MaxEvents = 100;
 
 	bool addWatch(SocketPtr);
+	void removeWatch(int fd);
 	int wait();
 
 

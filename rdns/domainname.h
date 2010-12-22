@@ -11,7 +11,8 @@ class DomainName
 public:
     DomainName();
 
-	size_t fromByteArray(unsigned char *buf, size_t count);
+	size_t fromByteArray(const unsigned char *buf, size_t count);
+	std::string toString() const { return _name; }
 
 private:
 	std::string _name;

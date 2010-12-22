@@ -20,20 +20,22 @@ class Socket : public IODevice
 {
 public:
 	Socket() : IODevice() { };
-	Socket(const char *ip, unsigned int port);
-	Socket(int fd, sockaddr_in addr);
+	Socket(int fd, const sockaddr_in &addr);
 	bool isValid() const;
 	ssize_t write(const void *buf, size_t count) const;
 	ssize_t read(void *buf, size_t count);
 	virtual bool connect();
 	virtual bool listen();
 	virtual bool isStreamed() const;
-	virtual SocketPtr accept();
+	virtual bool accept(SocketPtr &client) = 0;
 	std::string toString() const;
 	int setBlocking(bool state = true);
 
 	static SocketPtr factory(const char *protoName, const char *ip,
 							  unsigned int port);
+
+protected:
+	bool makeAddress(const char *ip, unsigned int port, sockaddr_in *addr);
 
 protected:
 	sockaddr_in _addr;

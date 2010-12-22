@@ -23,6 +23,8 @@ public:
 	void setReadyReadHandler(CallbackPtr);
 	void setReadyOnly(bool state = true);
 
+	static void dump(const char *prefix, const unsigned char *buf, size_t count);
+
 protected:
 	int _fd;
 	bool _readyRead;

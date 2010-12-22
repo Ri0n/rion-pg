@@ -46,8 +46,8 @@ TCPEchoService::TCPEchoService(SocketPtr socket)
 
 void TCPEchoService::acceptConnection()
 {
-	SocketPtr client = socket->accept();
-	if (client->isValid()) {
+	SocketPtr client;
+	if (socket->accept(client) && client->isValid()) {
 		cout << "new client tcp connection\n";
 		Reactor::instance()->addWatch(client);
 		client->setReadyReadHandler(CallbackPtr(

@@ -17,10 +17,10 @@ using std::cout;
 using std::endl;
 using std::string;
 
-TCPSocket::TCPSocket(const char *ip, unsigned int port)
-	: Socket(ip, port)
+TCPSocket::TCPSocket(const char *ip, unsigned int port = 0)
+	: Socket()
 {
-	if (_addr.sin_port) { // 0 in case of error
+	if (makeAddress(ip, port, &_addr)) {
 		_fd = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
 		if (_fd == -1) {
 			perror("Failed to create socket");
@@ -28,7 +28,7 @@ TCPSocket::TCPSocket(const char *ip, unsigned int port)
 	}
 }
 
-TCPSocket::TCPSocket(int fd, sockaddr_in addr)
+TCPSocket::TCPSocket(int fd, const sockaddr_in &addr)
 	: Socket(fd, addr)
 {
 
@@ -55,19 +55,19 @@ bool TCPSocket::isStreamed() const
 	return true;
 }
 
-SocketPtr TCPSocket::accept()
+bool TCPSocket::accept(SocketPtr &client)
 {
 	sockaddr_in addr;
 	socklen_t addrlen = sizeof(addr);
 	int clientSock = ::accept(_fd, (sockaddr*)&addr, &addrlen);
 	if (clientSock == -1 || addrlen == 0) {
 		perror("Failed to accept connection");
-		return SocketPtr();
+		return false;
 	}
 
-	SocketPtr sock(new TCPSocket(clientSock, addr));
-	sock->setBlocking(false);
+	client = SocketPtr(new TCPSocket(clientSock, addr));
+	client->setBlocking(false);
 
-	cout << "Accepted connection from: " << sock->toString() << endl;
-	return sock;
+	cout << "Accepted connection from: " << client->toString() << endl;
+	return true;
 }

@@ -1,5 +1,6 @@
 #include <cstdio>
 #include <iostream>
+#include <iomanip>
 #include <unistd.h>
 #include <errno.h>
 #include "iodevice.h"
@@ -51,6 +52,9 @@ ssize_t IODevice::write(const void *buf, size_t count) const
 	if (bw == -1) {
 		perror("Failed to read");
 	}
+	else {
+		dump("written: ", (unsigned char*)buf, bw);
+	}
 	return bw;
 }
 
@@ -65,6 +69,9 @@ ssize_t IODevice::read(void *buf, size_t count)
 		else {
 			perror("Failed to read");
 		}
+	}
+	else {
+		dump("read: ", (unsigned char*)buf, br);
 	}
 	return br;
 }
@@ -92,4 +99,13 @@ void IODevice::setReadyReadHandler(CallbackPtr cb)
 void IODevice::setReadyOnly(bool state)
 {
 	_readOnly = state;
+}
+
+void IODevice::dump(const char *prefix, const unsigned char *buf, size_t count)
+{
+	cout << prefix << count << " bytes: " << std::hex << std::setfill('0');
+	for (size_t i = 0; i < count; i++) {
+		cout << std::setw(2) << (int)buf[i] << " ";
+	}
+	cout << std::endl;
 }

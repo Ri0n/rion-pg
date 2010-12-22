@@ -1,4 +1,6 @@
 #include <iostream>
+#include <sstream>
+#include <cstring>
 #include "dnsmessage.h"
 
 using namespace rdns;
@@ -24,31 +26,98 @@ DNSMessage::DNSMessage()
 {
 }
 
-DNSMessage* DNSMessage::fromByteArray(unsigned char *buf, size_t count)
+DNSMessagePtr DNSMessage::fromByteArray(unsigned char *buf, size_t count)
 {
 	if (count < 12) { // bad header
-		cerr << "bad dns header\n";
-		return 0;
+		cerr << "dns header too small\n";
+		return DNSMessagePtr();
 	}
-	DNSMessage *msg = new DNSMessage;
-	msg->_id = *((uint16_t *)buf);
-	msg->_flags = *((uint16_t *)&buf[2]);
-	msg->_qdcount = *((uint16_t *)&buf[4]);
-	msg->_ancount = *((uint16_t *)&buf[6]);
-	msg->_nscount = *((uint16_t *)&buf[8]);
-	msg->_arcount = *((uint16_t *)&buf[10]);
-
-	msg->_question.fromByteArray(&buf[12], count - 12);
-
+	if (count > DNSMaxMessageSize) {
+		cerr << "dns message too big\n";
+		return DNSMessagePtr();
+	}
+	DNSMessagePtr msg(new DNSMessage);
+	std::memcpy(msg->data.buffer, buf, count);
+	msg->_size = count;
 	return msg;
 }
 
-void DNSMessage::setId(uint16_t id)
+bool DNSMessage::writeTo(const SocketPtr &socket)
 {
-	_id = id;
+	return socket->write(data.buffer, _size);
 }
 
-void DNSMessage::setFlags(uint16_t flags)
+std::string DNSMessage::toString() const // just to dump smth in caller
 {
-	_flags = flags;
+	std::ostringstream stream;
+	stream << "id=" << id() << " ";
+	stream << "QR=" << (isResponse()?"response":"query") << " ";
+	uint8_t oc = opCode();
+	stream << "OPCODE=" << (oc == OpCodeQuery?"QUERY":
+						   (oc == OpCodeIQuery?"IQUERY":
+						   (oc == OpCodeStatus?"STATUS":"UNRECOGNIZED"))) << " ";
+	stream << "qdcount=" << qdCount() << " ";
+	stream << "ancount=" << anCount() << " ";
+	stream << "nscount=" << nsCount() << " ";
+	stream << "arcount=" << arCount() << " ";
+	stream << "domain=" << domainName() << " ";
+	return stream.str();
+}
+
+uint16_t DNSMessage::id() const
+{
+	return ntohs(data.header.id);
+}
+
+uint16_t DNSMessage::flags() const
+{
+	return data.header.flags;
+}
+
+uint16_t DNSMessage::qdCount() const
+{
+	return ntohs(data.header.qdcount);
+}
+
+uint16_t DNSMessage::anCount() const
+{
+	return ntohs(data.header.ancount);
+}
+
+uint16_t DNSMessage::nsCount() const
+{
+	return ntohs(data.header.nscount);
+}
+
+uint16_t DNSMessage::arCount() const
+{
+	return ntohs(data.header.arcount);
+}
+
+bool DNSMessage::isResponse() const
+{
+	return data.header.flags & (1 << 7);
+}
+
+uint8_t DNSMessage::opCode() const
+{
+	return (data.header.flags >> 3) & 0xf;
+}
+
+void DNSMessage::setResponseBit(bool state)
+{
+	uint16_t b = (1 << 7);
+	if (state) {
+		data.header.flags |= b;
+	}
+	else {
+		data.header.flags &= ~b;
+	}
+}
+
+std::string DNSMessage::domainName() const
+{
+	DomainName dn;
+	dn.fromByteArray(&data.buffer[sizeof(data.header)], DNSMaxMessageSize); // big size to be sure )
+	return dn.toString();
 }

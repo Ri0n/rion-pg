@@ -10,10 +10,10 @@ class TCPSocket : public Socket
 {
 public:
 	TCPSocket(const char *ip, unsigned int port);
-	TCPSocket(int fd, sockaddr_in addr);
+	TCPSocket(int fd, const sockaddr_in &addr);
 	bool listen();
 	bool isStreamed() const;
-	SocketPtr accept();
+	bool accept(SocketPtr &client);
 };
 
 } // namespace rdns

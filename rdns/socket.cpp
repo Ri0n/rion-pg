@@ -13,24 +13,22 @@ using std::cerr;
 using std::endl;
 using std::string;
 
-Socket::Socket(const char *ip, unsigned int port)
-	: IODevice()
-{
-	if (inet_pton(AF_INET, ip, &_addr.sin_addr) != 1) {
-		cerr << "Failed to convert IP address: " << ip << endl;
-		_addr.sin_port = 0; // lets consider 0 is error here
-	}
-	else {
-		_addr.sin_family = AF_INET;
-		_addr.sin_port = htons(port);
-	}
-}
-
-Socket::Socket(int fd, sockaddr_in addr)
+Socket::Socket(int fd, const sockaddr_in &addr)
 	: IODevice(fd)
 	, _addr(addr)
 {
 
+}
+
+bool Socket::makeAddress(const char *ip, unsigned int port, sockaddr_in *addr)
+{
+	if (inet_pton(AF_INET, ip, &addr->sin_addr) != 1) {
+		cerr << "Failed to convert IP address: " << ip << endl;
+		return false;
+	}
+	addr->sin_family = AF_INET;
+	addr->sin_port = htons(port);
+	return true;
 }
 
 bool Socket::isValid() const
@@ -67,11 +65,6 @@ bool Socket::listen()
 bool Socket::isStreamed() const
 {
 	return false;
-}
-
-SocketPtr Socket::accept()
-{
-	return SocketPtr(); // stub
 }
 
 string Socket::toString() const
