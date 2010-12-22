@@ -89,7 +89,6 @@ void DNSService::onReadyRead()
 						Reactor::instance()->addWatch(remotePtr);
 						message->writeTo(remotePtr);
 					}
-					//socket->write("success", 5);
 				}
 			}
 			else {

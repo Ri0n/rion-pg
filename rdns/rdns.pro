@@ -16,7 +16,6 @@ TEMPLATE = app
 
 
 SOURCES += main.cpp \
-    rr.cpp \
     domainname.cpp \
     request.cpp \
     userrequest.cpp \
@@ -34,7 +33,6 @@ SOURCES += main.cpp \
     dnsmessage.cpp
 
 HEADERS += \
-    rr.h \
     domainname.h \
     request.h \
     userrequest.h \

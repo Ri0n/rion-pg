@@ -41,8 +41,7 @@ void UDPEchoService::onReadyRead()
 				cout << std::setw(2) << (int)buf[i] << " ";
 			}
 			cout << std::endl;
-			std::string recvStr(buf);
-			std::string repl = std::string("You sent: ") + recvStr.substr(0, cnt);
+			std::string repl = std::string("You sent: ") + std::string(buf, cnt);
 			socket->write(repl.c_str(), repl.size());
 		}
 	}

@@ -25,11 +25,13 @@ public:
 		: socket(socket.get()) { } // don't allow recursive links to allow "gc" to its job =)
 
 	void call() {
-		std::string answer = "You sent: ";
 		char buf[10124];
 		int cnt = socket->read(buf, 1024);
-		answer += std::string(buf).substr(0, cnt); // lets consider that was a string =)
-		socket->write(answer.c_str(), answer.size());
+		if (cnt) {
+			// lets consider that was a string =)
+			std::string answer = std::string("You sent: ") + std::string(buf, cnt);
+			socket->write(answer.c_str(), answer.size());
+		}
 	}
 
 private:

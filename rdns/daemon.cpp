@@ -51,8 +51,14 @@ bool Daemon::listen()
 	cout << "start listening\n";
 	while (true) {
 		cout << "waiting for events\n";
-		if (reactor->wait() == -1) {
-			perror("rector error");
+		int cnt = reactor->wait();
+		if (cnt < 0) {
+			if (cnt == -1) {
+				perror("rector error");
+				return false;
+			}
+			cout << "termination requested\n";
+			return true; // -2 - SIGINT or SIGTERM
 		}
 
 	}

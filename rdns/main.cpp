@@ -25,7 +25,8 @@ int main(int argc, char *argv[])
 		scheme = arg.substr(0, arg.find(':'));
 		if (scheme == "udp" || scheme == "dns") {
 			proto = "UDP";
-		} else if (scheme == "tcp") {
+		}
+		else if (scheme == "tcp") {
 			proto = "TCP";
 		}
 		if (proto.size()) {

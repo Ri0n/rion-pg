@@ -79,7 +79,13 @@ ssize_t IODevice::read(void *buf, size_t count)
 void IODevice::close()
 {
 	if (_fd != -1) {
-		::close(_fd);
+		if (::close(_fd) == -1) {
+			perror("Failed to close");
+			if (errno != EBADF) {
+				return;
+			}
+		}
+		_fd = -1;
 	}
 }
 
