@@ -50,11 +50,23 @@ private:
 	UDPSocket *remoteSocket;
 };
 
+//--------------------------
+// DNSService
+//--------------------------
+
 DNSService::DNSService(SocketPtr socket)
 	: Service(socket)
+	, _remoteDnsIp(std::string("192.168.0.1"))
+	, _remoteDnsPort(53)
 {
 	socket->setReadyReadHandler(CallbackPtr(
 										new DNSServiceReadyReadCallback(this)));
+}
+
+void DNSService::setRemoteDns(const char *host, uint16_t port)
+{
+	_remoteDnsIp = std::string(host);
+	_remoteDnsPort = port;
 }
 
 void DNSService::onReadyRead()
@@ -80,7 +92,7 @@ void DNSService::onReadyRead()
 				}
 				else {
 					UDPSocket *remote = new UDPSocket("0.0.0.0", 52000);
-					if (remote->isValid() && remote->connectTo("192.168.0.1", 53)) {
+					if (remote->isValid() && remote->connectTo(_remoteDnsIp.c_str(), _remoteDnsPort)) {
 						remote->setReadyReadHandler(CallbackPtr(
 							new DNSServiceRemoteReadyReadCallback(
 								this, ((UDPSocket*)socket.get())->clientAddress(),

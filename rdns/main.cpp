@@ -8,6 +8,7 @@
 #include "dnsservice.h"
 #include "tcpechoservice.h"
 #include "udpechoservice.h"
+#include "uri.h"
 
 using namespace std;
 
@@ -17,40 +18,41 @@ int main(int argc, char *argv[])
 	vector<rdns::ServicePtr> services;
 	rdns::Reactor::setDefaultType(rdns::Reactor::EpollType);
 
-	string arg, host, scheme, proto;
+	string proto;
+	rdns::Uri remoteDns;
+	rdns::DNSService *dnsService = 0;
 	for (int i = 1; i < argc; i++) {
-		arg = argv[i];
-		host = "";
 		proto = "";
-		scheme = arg.substr(0, arg.find(':'));
-		if (scheme == "udp" || scheme == "dns") {
+		rdns::Uri uriParam(argv[i]);
+		if (uriParam.scheme() == "remotedns") {
+			remoteDns = uriParam;
+		}
+		else if (uriParam.scheme() == "udp" || uriParam.scheme() == "dns") {
 			proto = "UDP";
 		}
-		else if (scheme == "tcp") {
+		else if (uriParam.scheme() == "tcp") {
 			proto = "TCP";
 		}
 		if (proto.size()) {
-			int ipPos = scheme.size() + 3;
-			size_t dp = arg.find(':', ipPos);
-			if (dp != string::npos) {
-				std::istringstream portStr(arg.substr(dp + 1));
-				int port;
-				portStr >> port;
-				rdns::SocketPtr sock = daemon->addListener(proto.c_str(),
-								arg.substr(ipPos, dp - ipPos).c_str(), port);
-				if (sock.get()) { // inited
-					if (scheme == "dns") {
-						services.push_back(rdns::ServicePtr(new rdns::DNSService(sock)));
-					}
-					else if (scheme == "tcp") {
-						services.push_back(rdns::ServicePtr(new rdns::TCPEchoService(sock)));
-					}
-					else if (scheme == "udp") {
-						services.push_back(rdns::ServicePtr(new rdns::UDPEchoService(sock)));
-					}
+			rdns::SocketPtr sock = daemon->addListener(proto.c_str(),
+							uriParam.host().c_str(), uriParam.port());
+			if (sock.get()) { // inited
+				if (uriParam.scheme() == "dns") {
+					dnsService = new rdns::DNSService(sock);
+					services.push_back(rdns::ServicePtr(dnsService));
+				}
+				else if (uriParam.scheme() == "tcp") {
+					services.push_back(rdns::ServicePtr(new rdns::TCPEchoService(sock)));
+				}
+				else if (uriParam.scheme() == "udp") {
+					services.push_back(rdns::ServicePtr(new rdns::UDPEchoService(sock)));
 				}
 			}
 		}
+	}
+
+	if (dnsService && remoteDns.host().size()) {
+		dnsService->setRemoteDns(remoteDns.host().c_str(), remoteDns.port());
 	}
 
 	//daemon->addListener("UDP", "0.0.0.0", 53);
