@@ -14,7 +14,7 @@ size_t DomainName::fromByteArray(const unsigned char *buf, size_t count)
 	while (count - c > 0 && buf[c]) {
 		_name += std::string((const char*)&buf[c + 1], (size_t)buf[c]);
 		c += buf[c] + 1;
-		if (buf[c]) {
+		if (c < count && buf[c]) {
 			_name += '.';
 		}
 	}
