@@ -9,7 +9,7 @@ namespace rdns
 class TCPSocket : public Socket
 {
 public:
-	TCPSocket(const char *ip, unsigned int port);
+	TCPSocket(const char *ip = "0.0.0.0", unsigned int port = 0);
 	TCPSocket(int fd, const sockaddr_in &addr);
 	bool listen();
 	bool isStreamed() const;

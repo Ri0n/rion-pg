@@ -14,6 +14,7 @@ class Service
 {
 public:
 	Service(SocketPtr);
+	virtual ~Service() { }
 
 protected:
 	SocketPtr socket;

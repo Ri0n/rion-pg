@@ -59,7 +59,7 @@ public:
 
 	std::string toString() const; // just to dump smth in caller
 
-	inline uint16_t id() const;
+	inline uint16_t id() const { return ntohs(data.header.id); }
 	inline uint16_t flags() const;
 	inline uint16_t qdCount() const;
 	inline uint16_t anCount() const;

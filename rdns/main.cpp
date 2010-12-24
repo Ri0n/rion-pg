@@ -55,9 +55,6 @@ int main(int argc, char *argv[])
 		dnsService->setRemoteDns(remoteDns.host().c_str(), remoteDns.port());
 	}
 
-	//daemon->addListener("UDP", "0.0.0.0", 53);
-	//daemon->addListener("TCP", "0.0.0.0", 5300);
-	//daemon->addListener("UDP", "0.0.0.0", 1235);
 	if (!daemon->listen()) {
 		cout << "Exiting because of errors\n";
 		return 1;

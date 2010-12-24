@@ -13,6 +13,7 @@
 
 using namespace rdns;
 using std::cout;
+using std::cerr;
 
 class DNSServiceReadyReadCallback : public Callback
 {
@@ -32,22 +33,16 @@ private:
 class DNSServiceRemoteReadyReadCallback : public Callback
 {
 public:
-	DNSServiceRemoteReadyReadCallback(DNSService *service,
-									  const sockaddr_in &clientAddr,
-									  UDPSocket *remoteSocket)
+	DNSServiceRemoteReadyReadCallback(DNSService *service)
 		: service(service)
-		, clientAddr(clientAddr)
-		, remoteSocket(remoteSocket)
 	{ }
 
 	void call() {
-		service->onRemoteReadyRead(remoteSocket, clientAddr);
+		service->onRemoteReadyRead();
 	}
 
 private:
 	DNSService *service;
-	sockaddr_in clientAddr;
-	UDPSocket *remoteSocket;
 };
 
 //--------------------------
@@ -56,17 +51,25 @@ private:
 
 DNSService::DNSService(SocketPtr socket)
 	: Service(socket)
-	, _remoteDnsIp(std::string("192.168.0.1"))
-	, _remoteDnsPort(53)
 {
-	socket->setReadyReadHandler(CallbackPtr(
-										new DNSServiceReadyReadCallback(this)));
+	socket->setReadyReadHandler(
+				CallbackPtr(new DNSServiceReadyReadCallback(this)) );
 }
 
-void DNSService::setRemoteDns(const char *host, uint16_t port)
+bool DNSService::setRemoteDns(const char *host, uint16_t port)
 {
-	_remoteDnsIp = std::string(host);
-	_remoteDnsPort = port;
+	_remoteDns = SocketPtr(new UDPSocket());
+	UDPSocket *remote = (UDPSocket*)_remoteDns.get();
+	if (remote->setEndPoint(host, port) && remote->connectToEndPoint()) {
+		remote->setReadyReadHandler(
+			CallbackPtr( new DNSServiceRemoteReadyReadCallback(this) )
+		);
+		Reactor::instance()->addWatch(_remoteDns);
+		cout << "Successfully set remote dns server\n";
+		return true;
+	}
+	cerr << "Failed to set remote dns server\n";
+	return false;
 }
 
 void DNSService::onReadyRead()
@@ -85,22 +88,19 @@ void DNSService::onReadyRead()
 				std::string dname = message->domainName();
 				// harcode words. no time to do smth more smart.
 				if (dname.find("sex") != std::string::npos ||
-					dname.find("xxx") != std::string::npos)
+					dname.find("xxx") != std::string::npos ||
+					!_remoteDns.get())
 				{
 					message->setResponseBit(true);
 					message->writeTo(socket);
 				}
 				else {
-					UDPSocket *remote = new UDPSocket("0.0.0.0", 52000);
-					if (remote->isValid() && remote->connectTo(_remoteDnsIp.c_str(), _remoteDnsPort)) {
-						remote->setReadyReadHandler(CallbackPtr(
-							new DNSServiceRemoteReadyReadCallback(
-								this, ((UDPSocket*)socket.get())->clientAddress(),
-										remote)));
-						SocketPtr remotePtr(remote);
-						Reactor::instance()->addWatch(remotePtr);
-						message->writeTo(remotePtr);
-					}
+					DNSRequest *request = new DNSRequest(message->id(),
+														 ((UDPSocket*)socket.get())->endPoint());
+					_requests.insert(
+						DNSRequestItem(message->id(), DNSRequestPtr(request))
+					);
+					message->writeTo(_remoteDns);
 				}
 			}
 			else {
@@ -111,15 +111,17 @@ void DNSService::onReadyRead()
 }
 
 
-void DNSService::onRemoteReadyRead(UDPSocket *remoteSocket,
-								   const sockaddr_in &clientAddr)
+void DNSService::onRemoteReadyRead()
 {
 	cout << "remote ready read\n";
 	unsigned char buf[DNSMaxMessageSize];
 	int cnt;
-	if ((cnt = remoteSocket->read(buf, DNSMaxMessageSize)) != -1) {
-		((UDPSocket*)socket.get())->connectTo(clientAddr);
-		socket->write(buf, cnt);
-		Reactor::instance()->removeWatch(remoteSocket->fd());
+	if ((cnt = _remoteDns->read(buf, DNSMaxMessageSize)) != -1) {
+		DNSMessagePtr message = DNSMessage::fromByteArray(buf, cnt);
+		DNSRequestIterator ri = _requests.find(message->id());
+		if (ri != _requests.end()) {
+			((UDPSocket*)socket.get())->setEndPoint((*ri).second->clientAddress());
+			message->writeTo(socket);
+		}
 	}
 }

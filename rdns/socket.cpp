@@ -31,11 +31,6 @@ bool Socket::makeAddress(const char *ip, unsigned int port, sockaddr_in *addr)
 	return true;
 }
 
-bool Socket::isValid() const
-{
-	return IODevice::isValid() && _addr.sin_port != 0;
-}
-
 ssize_t Socket::write(const void *buf, size_t count) const
 {
 	cout << "writing to socket: " << toString() << endl;
@@ -50,7 +45,12 @@ ssize_t Socket::read(void *buf, size_t count)
 
 bool Socket::connect()
 {
-	if (::connect(_fd, (sockaddr*)&_addr, sizeof(_addr)) == -1) {
+	return connect(_addr);
+}
+
+bool Socket::connect(const sockaddr_in &addr)
+{
+	if (::connect(_fd, (sockaddr*)&addr, sizeof(addr)) == -1) {
 		perror("Failed to connect");
 		return false;
 	}

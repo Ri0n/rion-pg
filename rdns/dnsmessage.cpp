@@ -64,10 +64,10 @@ std::string DNSMessage::toString() const // just to dump smth in caller
 	return stream.str();
 }
 
-uint16_t DNSMessage::id() const
-{
-	return ntohs(data.header.id);
-}
+//uint16_t DNSMessage::id() const
+//{
+//	return ntohs(data.header.id);
+//}
 
 uint16_t DNSMessage::flags() const
 {

@@ -17,7 +17,7 @@ using std::cout;
 using std::endl;
 using std::string;
 
-TCPSocket::TCPSocket(const char *ip, unsigned int port = 0)
+TCPSocket::TCPSocket(const char *ip, unsigned int port)
 	: Socket()
 {
 	if (makeAddress(ip, port, &_addr)) {

@@ -45,7 +45,7 @@ bool UDPSocket::listen()
 ssize_t UDPSocket::write(const void *buf, size_t count) const
 {
 	dump("sending datagram: ", (unsigned char *)buf, count);
-	return sendto(_fd, buf, count, 0, (sockaddr*) &clientAddr, sizeof(clientAddr));
+	return sendto(_fd, buf, count, 0, (sockaddr*) &_endPoint, sizeof(_endPoint));
 }
 
 // If param `client` is self then self socket will be connected to client.
@@ -61,7 +61,7 @@ bool UDPSocket::accept(SocketPtr &client)
 	}
 	else {
 		if (client.get() == this) { // connect self to client
-			clientAddr = addr;
+			_endPoint = addr;
 			return true;
 		}
 		else { // make new socket and store in client
@@ -81,13 +81,17 @@ bool UDPSocket::accept(SocketPtr &client)
 	return false;
 }
 
-bool UDPSocket::connectTo(const sockaddr_in &addr)
+void UDPSocket::setEndPoint(const sockaddr_in &addr)
 {
-	clientAddr = addr;
-	return true;
+	_endPoint = addr;
 }
 
-bool UDPSocket::connectTo(const char *ip, unsigned int port)
+bool UDPSocket::setEndPoint(const char *ip, unsigned int port)
 {
-	return makeAddress(ip, port, &clientAddr);
+	return makeAddress(ip, port, &_endPoint);
+}
+
+bool UDPSocket::connectToEndPoint()
+{
+	return connect(_endPoint);
 }

@@ -32,6 +32,9 @@ public:
 			std::string answer = std::string("You sent: ") + std::string(buf, cnt);
 			socket->write(answer.c_str(), answer.size());
 		}
+		else {
+			Reactor::instance()->removeWatch(socket->fd());
+		}
 	}
 
 private:

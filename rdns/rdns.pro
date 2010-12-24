@@ -17,8 +17,6 @@ TEMPLATE = app
 
 SOURCES += main.cpp \
     domainname.cpp \
-    request.cpp \
-    userrequest.cpp \
     daemon.cpp \
     reactor.cpp \
     epoll.cpp \
@@ -31,12 +29,11 @@ SOURCES += main.cpp \
 	tcpechoservice.cpp \
 	udpechoservice.cpp \
     dnsmessage.cpp \
-    uri.cpp
+    uri.cpp \
+    dnsrequest.cpp
 
 HEADERS += \
     domainname.h \
-    request.h \
-    userrequest.h \
     daemon.h \
     shared_ptr.h \
     reactor.h \
@@ -51,4 +48,5 @@ HEADERS += \
 	udpechoservice.h \
     functionoid.h \
     dnsmessage.h \
-    uri.h
+    uri.h \
+    dnsrequest.h
