@@ -13,11 +13,11 @@ class Daemon
 {
 public:
 	Daemon();
-	SocketPtr addListener(const char *protoName, const char *ip, unsigned int port);
+	IODevicePtr addListener(const char *protoName, const char *ip, unsigned int port);
 	bool listen();
 
 private:
-	SocketMap _listeners;
+	IODeviceMap _listeners;
 };
 
 } // namespace rdns

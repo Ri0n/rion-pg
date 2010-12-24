@@ -10,6 +10,7 @@
 #include "dnsmessage.h"
 #include "udpsocket.h"
 #include "reactor.h"
+#include "timer.h"
 
 using namespace rdns;
 using std::cout;
@@ -45,20 +46,47 @@ private:
 	DNSService *service;
 };
 
+class DNSServiceTimeoutCallback : public Callback
+{
+public:
+	DNSServiceTimeoutCallback(DNSService *service)
+		: service(service)
+	{ }
+
+	void call() {
+		service->onTimeout();
+	}
+
+private:
+	DNSService *service;
+};
+
+
 //--------------------------
 // DNSService
 //--------------------------
 
-DNSService::DNSService(SocketPtr socket)
+DNSService::DNSService(IODevicePtr socket)
 	: Service(socket)
 {
 	socket->setReadyReadHandler(
 				CallbackPtr(new DNSServiceReadyReadCallback(this)) );
+
+	Timer *t = new Timer();
+	t->setTimeout(DNSRequestTTL.tv_sec, DNSRequestTTL.tv_nsec);
+	t->setInterval(DNSRequestTTL.tv_sec, DNSRequestTTL.tv_nsec);
+	t->setReadyReadHandler(
+		CallbackPtr( new DNSServiceTimeoutCallback(this) )
+	);
+	_timer = IODevicePtr(t);
+	cout << "Timer fd = " << t->fd() << "\n";
+	Reactor::instance()->addWatch(_timer);
 }
 
 bool DNSService::setRemoteDns(const char *host, uint16_t port)
 {
-	_remoteDns = SocketPtr(new UDPSocket());
+	_remoteDns = IODevicePtr(new UDPSocket());
+	cout << "Remote DNS fd = " << _remoteDns->fd() << "\n";
 	UDPSocket *remote = (UDPSocket*)_remoteDns.get();
 	if (remote->setEndPoint(host, port) && remote->connectToEndPoint()) {
 		remote->setReadyReadHandler(
@@ -75,7 +103,7 @@ bool DNSService::setRemoteDns(const char *host, uint16_t port)
 void DNSService::onReadyRead()
 {
 	unsigned char buf[DNSMaxMessageSize];
-	if (socket->accept(socket)) {
+	if (((Socket*)socket.get())->accept(socket)) {
 		ssize_t cnt = socket->read(buf, DNSMaxMessageSize);
 		if (cnt == -1) {
 			cout << "hm\n";
@@ -97,6 +125,9 @@ void DNSService::onReadyRead()
 				else {
 					DNSRequest *request = new DNSRequest(message->id(),
 														 ((UDPSocket*)socket.get())->endPoint());
+					if (_requests.empty()) { // timer not started yet
+						((Timer*)_timer.get())->start();
+					}
 					_requests.insert(
 						DNSRequestItem(message->id(), DNSRequestPtr(request))
 					);
@@ -122,6 +153,16 @@ void DNSService::onRemoteReadyRead()
 		if (ri != _requests.end()) {
 			((UDPSocket*)socket.get())->setEndPoint((*ri).second->clientAddress());
 			message->writeTo(socket);
+			_requests.erase(message->id());
+		}
+		if (_requests.empty()) {
+			((Timer*)_timer.get())->stop();
 		}
 	}
 }
+
+void DNSService::onTimeout()
+{
+	cout << "Check requests for timeouts\n";
+}
+

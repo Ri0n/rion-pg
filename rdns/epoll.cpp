@@ -7,6 +7,7 @@
 
 using namespace rdns;
 using std::cout;
+using std::endl;
 
 Epoll::Epoll()
 	: Reactor()
@@ -38,10 +39,10 @@ void Epoll::close()
 	}
 }
 
-bool Epoll::addWatch(SocketPtr sock)
+bool Epoll::addWatch(IODevicePtr sock)
 {
 	if (addWatch(sock->fd())) {
-		_watches.insert(SocketItem(sock->fd(), sock));
+		_watches.insert(IODeviceItem(sock->fd(), sock));
 		return true;
 	}
 	return false;
@@ -50,6 +51,7 @@ bool Epoll::addWatch(SocketPtr sock)
 bool Epoll::addWatch(int fd)
 {
 	epoll_event ev;
+	cout << "add watch fd=" << fd << endl;
 	ev.data.u64 = 0; // make valgrind happy =)
 	ev.events = EPOLLIN | EPOLLET;
 	ev.data.fd = fd;
@@ -62,6 +64,7 @@ bool Epoll::addWatch(int fd)
 
 void Epoll::removeWatch(int fd)
 {
+	cout << "remove watch fd=" << fd << endl;
 	_watches.erase(fd);
 }
 
@@ -72,7 +75,7 @@ int Epoll::wait()
 		if (events[i].data.fd == sigFd) {
 			return -2;
 		}
-		SocketIterator si = _watches.find(events[i].data.fd);
+		IODeviceIterator si = _watches.find(events[i].data.fd);
 		if (si != _watches.end()) {
 			cout << "received events: " << events[i].events << "\n";
 			if (events[i].events & (EPOLLHUP | EPOLLERR | EPOLLRDHUP)) {
@@ -82,12 +85,15 @@ int Epoll::wait()
 				(*si).second->setReadyRead();
 			}
 			if (events[i].events & (EPOLLHUP | EPOLLERR | EPOLLRDHUP)) {
-				_watches.erase((*si).first); // destructor will close internal socket
+				// TODO check is we are removing some major things like remote dns or timer
+				// this should never happen
+				removeWatch((*si).first); // destructor will close internal socket
 			}
 		}
 		else {
 			// TODO O_o
-			cout << "Received data from unknown client. Ignoring..\n";
+			cout << "Received data from unknown client. events: "
+				 << events[i].events << " fd: " << events[i].data.fd << " Ignoring..\n";
 		}
 	}
 	return nfds;

@@ -20,7 +20,7 @@ private:
 	UDPEchoService *service;
 };
 
-UDPEchoService::UDPEchoService(SocketPtr socket)
+UDPEchoService::UDPEchoService(IODevicePtr socket)
 	: Service(socket)
 {
 	socket->setReadyReadHandler(CallbackPtr(
@@ -30,7 +30,7 @@ UDPEchoService::UDPEchoService(SocketPtr socket)
 void UDPEchoService::onReadyRead()
 {
 	char buf[1024];
-	if (socket->accept(socket)) {
+	if (((Socket*)socket.get())->accept(socket)) {
 		ssize_t cnt = socket->read(buf, 1024);
 		if (cnt == -1) {
 			cout << "hm\n";

@@ -51,7 +51,7 @@ ssize_t UDPSocket::write(const void *buf, size_t count) const
 // If param `client` is self then self socket will be connected to client.
 // Otherwise new UDP socket will be created and "connected" to client,
 // `client` param socket will be replaced with new one, so bear this in mind.
-bool UDPSocket::accept(SocketPtr &client)
+bool UDPSocket::accept(IODevicePtr &client)
 {
 	socklen_t addrLen = sizeof(_addr);
 	sockaddr_in addr;
@@ -67,9 +67,10 @@ bool UDPSocket::accept(SocketPtr &client)
 		else { // make new socket and store in client
 			int fd = socket(AF_INET, SOCK_DGRAM | SOCK_NONBLOCK, 0);
 			if (fd != -1) {
-				client = SocketPtr(new UDPSocket(fd, addr));
-				if (client->connect()) {
-					cout << "Accepted new UDP connection from " << client->toString() << endl;
+				UDPSocket *udpClient = new UDPSocket(fd, addr);
+				if (udpClient->connect()) {
+					cout << "Accepted new UDP connection from " << udpClient->toString() << endl;
+					client = IODevicePtr(udpClient);
 					return true;
 				}
 			}

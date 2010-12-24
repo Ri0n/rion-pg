@@ -23,13 +23,13 @@ public:
 	static Reactor* instance();
 	static void setDefaultType(ReactorType);
 
-	virtual bool addWatch(SocketPtr) = 0;
+	virtual bool addWatch(IODevicePtr) = 0;
 	virtual void removeWatch(int fd) = 0;
 	virtual int wait() = 0;
 
 protected:
 	Reactor();
-	SocketMap _watches;
+	IODeviceMap _watches;
 
 private:
 	static ReactorType _defaultType;

@@ -18,13 +18,15 @@ typedef DNSRequestMap::iterator DNSRequestIterator;
 class DNSService : public Service
 {
 public:
-	DNSService(SocketPtr);
+	DNSService(IODevicePtr);
 	bool setRemoteDns(const char *host, uint16_t port);
 	void onReadyRead();
 	void onRemoteReadyRead();
+	void onTimeout();
 
 private:
-	SocketPtr _remoteDns;
+	IODevicePtr _remoteDns;
+	IODevicePtr _timer;
 	DNSRequestMap _requests;
 };
 

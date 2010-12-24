@@ -55,20 +55,20 @@ public:
 
 	DNSMessage();
 	static DNSMessagePtr fromByteArray(unsigned char *buf, size_t count);
-	bool writeTo(const SocketPtr &);
+	bool writeTo(const IODevicePtr &);
 
 	std::string toString() const; // just to dump smth in caller
 
 	inline uint16_t id() const { return ntohs(data.header.id); }
-	inline uint16_t flags() const;
-	inline uint16_t qdCount() const;
-	inline uint16_t anCount() const;
-	inline uint16_t nsCount() const;
-	inline uint16_t arCount() const;
-	inline bool isResponse() const;
+	inline uint16_t flags() const { return data.header.flags; }
+	inline uint16_t qdCount() const { return ntohs(data.header.qdcount); }
+	inline uint16_t anCount() const { return ntohs(data.header.ancount); }
+	inline uint16_t nsCount() const { return ntohs(data.header.nscount); }
+	inline uint16_t arCount() const { return ntohs(data.header.arcount); }
+	inline bool isResponse() const { return data.header.flags & (1 << 7); }
 	void setResponseBit(bool);
 	//inline void setResponse() const;
-	inline uint8_t opCode() const;
+	inline uint8_t opCode() const { return (data.header.flags >> 3) & 0xf; }
 	std::string domainName() const;
 
 private:

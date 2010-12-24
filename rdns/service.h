@@ -13,11 +13,11 @@ typedef shared_ptr<Service> ServicePtr;
 class Service
 {
 public:
-	Service(SocketPtr);
+	Service(IODevicePtr);
 	virtual ~Service() { }
 
 protected:
-	SocketPtr socket;
+	IODevicePtr socket;
 };
 
 } // namespace rdns

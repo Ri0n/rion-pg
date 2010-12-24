@@ -1,7 +1,9 @@
 #include <cstdio>
 #include <iostream>
+#include <sstream>
 #include <iomanip>
 #include <unistd.h>
+#include <fcntl.h>
 #include <errno.h>
 #include "iodevice.h"
 
@@ -89,6 +91,17 @@ void IODevice::close()
 	}
 }
 
+int IODevice::setBlocking(bool state)
+{
+	int flags;
+
+	if ((flags = fcntl(_fd, F_GETFL, 0)) == -1) {
+		flags = 0;
+	}
+	return fcntl(_fd, F_SETFL, state? flags & ~O_NONBLOCK : flags | O_NONBLOCK);
+}
+
+
 void IODevice::setReadyRead()
 {
 	_readyRead = true;
@@ -105,6 +118,13 @@ void IODevice::setReadyReadHandler(CallbackPtr cb)
 void IODevice::setReadyOnly(bool state)
 {
 	_readOnly = state;
+}
+
+std::string IODevice::toString() const
+{
+	std::ostringstream stream;
+	stream << "IODevice(fd=" << _fd << ")";
+	return stream.str();
 }
 
 void IODevice::dump(const char *prefix, const unsigned char *buf, size_t count)

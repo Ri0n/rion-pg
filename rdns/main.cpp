@@ -34,7 +34,7 @@ int main(int argc, char *argv[])
 			proto = "TCP";
 		}
 		if (proto.size()) {
-			rdns::SocketPtr sock = daemon->addListener(proto.c_str(),
+			rdns::IODevicePtr sock = daemon->addListener(proto.c_str(),
 							uriParam.host().c_str(), uriParam.port());
 			if (sock.get()) { // inited
 				if (uriParam.scheme() == "dns") {

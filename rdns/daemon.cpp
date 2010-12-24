@@ -18,15 +18,15 @@ Daemon::Daemon()
 
 }
 
-SocketPtr Daemon::addListener(const char *protoName, const char *ip, unsigned int port)
+IODevicePtr Daemon::addListener(const char *protoName, const char *ip, unsigned int port)
 {
-	SocketPtr ls = Socket::factory(protoName, ip, port);
+	IODevicePtr ls = Socket::factory(protoName, ip, port);
 	if (ls.get() && ls->isValid()) {
 		Reactor::instance()->addWatch(ls);
-		_listeners.insert(SocketItem(ls->fd(), ls));
+		_listeners.insert(IODeviceItem(ls->fd(), ls));
 		return ls;
 	}
-	return SocketPtr();
+	return IODevicePtr();
 }
 
 bool Daemon::listen()
@@ -38,8 +38,8 @@ bool Daemon::listen()
 		return false;
 	}
 
-	for (SocketIterator i = _listeners.begin(); i != _listeners.end(); ++i) {
-		if ((*i).second->listen()) {
+	for (IODeviceIterator i = _listeners.begin(); i != _listeners.end(); ++i) {
+		if (((Socket*)(*i).second.get())->listen()) {
 			amountListen++;
 		}
 	}

@@ -5,8 +5,8 @@
 #-------------------------------------------------
 
 QT       -= core
-
 QT       -= gui
+LIBS  += -lrt
 
 TARGET = rdns
 CONFIG   += console
@@ -30,7 +30,8 @@ SOURCES += main.cpp \
 	udpechoservice.cpp \
     dnsmessage.cpp \
     uri.cpp \
-    dnsrequest.cpp
+    dnsrequest.cpp \
+    timer.cpp
 
 HEADERS += \
     domainname.h \
@@ -49,4 +50,5 @@ HEADERS += \
     functionoid.h \
     dnsmessage.h \
     uri.h \
-    dnsrequest.h
+    dnsrequest.h \
+    timer.h

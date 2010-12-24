@@ -13,7 +13,7 @@ public:
 	TCPSocket(int fd, const sockaddr_in &addr);
 	bool listen();
 	bool isStreamed() const;
-	bool accept(SocketPtr &client);
+	bool accept(IODevicePtr &client);
 };
 
 } // namespace rdns

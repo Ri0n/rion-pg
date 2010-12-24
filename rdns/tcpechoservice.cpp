@@ -21,8 +21,8 @@ private:
 class TCPEchoServiceResponder : public Callback
 {
 public:
-	TCPEchoServiceResponder(SocketPtr socket)
-		: socket(socket.get()) { } // don't allow recursive links to allow "gc" to its job =)
+	TCPEchoServiceResponder(IODevicePtr socket)
+		: socket((Socket*)socket.get()) { } // don't allow recursive links to allow "gc" to its job =)
 
 	void call() {
 		char buf[10124];
@@ -42,7 +42,7 @@ private:
 };
 
 
-TCPEchoService::TCPEchoService(SocketPtr socket)
+TCPEchoService::TCPEchoService(IODevicePtr socket)
 	: Service(socket)
 {
 	socket->setReadyReadHandler(CallbackPtr(
@@ -51,8 +51,8 @@ TCPEchoService::TCPEchoService(SocketPtr socket)
 
 void TCPEchoService::acceptConnection()
 {
-	SocketPtr client;
-	if (socket->accept(client) && client->isValid()) {
+	IODevicePtr client;
+	if (((Socket*)socket.get())->accept(client) && client->isValid()) {
 		cout << "new client tcp connection\n";
 		Reactor::instance()->addWatch(client);
 		client->setReadyReadHandler(CallbackPtr(

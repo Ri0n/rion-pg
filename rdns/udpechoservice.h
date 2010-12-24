@@ -9,7 +9,7 @@ namespace rdns
 class UDPEchoService : public Service
 {
 public:
-	UDPEchoService(SocketPtr);
+	UDPEchoService(IODevicePtr);
 	void onReadyRead();
 };
 

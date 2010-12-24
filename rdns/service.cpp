@@ -3,7 +3,7 @@
 namespace rdns
 {
 
-Service::Service(SocketPtr socket)
+Service::Service(IODevicePtr socket)
 	: socket(socket)
 {
 

@@ -13,7 +13,7 @@ public:
 	UDPSocket(int fd, const sockaddr_in &addr);
 	bool listen();
 	ssize_t write(const void *buf, size_t count) const;
-	bool accept(SocketPtr &client);
+	bool accept(IODevicePtr &client);
 	void setEndPoint(const sockaddr_in &addr);
 	bool setEndPoint(const char *ip, unsigned int port);
 	bool connectToEndPoint();

@@ -55,7 +55,7 @@ bool TCPSocket::isStreamed() const
 	return true;
 }
 
-bool TCPSocket::accept(SocketPtr &client)
+bool TCPSocket::accept(IODevicePtr &client)
 {
 	sockaddr_in addr;
 	socklen_t addrlen = sizeof(addr);
@@ -65,7 +65,7 @@ bool TCPSocket::accept(SocketPtr &client)
 		return false;
 	}
 
-	client = SocketPtr(new TCPSocket(clientSock, addr));
+	client = IODevicePtr(new TCPSocket(clientSock, addr));
 	client->setBlocking(false);
 
 	cout << "Accepted connection from: " << client->toString() << endl;

@@ -42,7 +42,7 @@ DNSMessagePtr DNSMessage::fromByteArray(unsigned char *buf, size_t count)
 	return msg;
 }
 
-bool DNSMessage::writeTo(const SocketPtr &socket)
+bool DNSMessage::writeTo(const IODevicePtr &socket)
 {
 	return socket->write(data.buffer, _size);
 }
@@ -62,46 +62,6 @@ std::string DNSMessage::toString() const // just to dump smth in caller
 	stream << "arcount=" << arCount() << " ";
 	stream << "domain=" << domainName() << " ";
 	return stream.str();
-}
-
-//uint16_t DNSMessage::id() const
-//{
-//	return ntohs(data.header.id);
-//}
-
-uint16_t DNSMessage::flags() const
-{
-	return data.header.flags;
-}
-
-uint16_t DNSMessage::qdCount() const
-{
-	return ntohs(data.header.qdcount);
-}
-
-uint16_t DNSMessage::anCount() const
-{
-	return ntohs(data.header.ancount);
-}
-
-uint16_t DNSMessage::nsCount() const
-{
-	return ntohs(data.header.nscount);
-}
-
-uint16_t DNSMessage::arCount() const
-{
-	return ntohs(data.header.arcount);
-}
-
-bool DNSMessage::isResponse() const
-{
-	return data.header.flags & (1 << 7);
-}
-
-uint8_t DNSMessage::opCode() const
-{
-	return (data.header.flags >> 3) & 0xf;
 }
 
 void DNSMessage::setResponseBit(bool state)

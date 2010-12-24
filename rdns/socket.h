@@ -2,19 +2,12 @@
 #define LSOCKET_H
 
 #include <string>
-#include <map>
 #include <netinet/in.h>
 #include "shared_ptr.h"
 #include "iodevice.h"
 
 namespace rdns
 {
-
-class Socket;
-typedef shared_ptr<Socket> SocketPtr;
-typedef std::map<int, SocketPtr> SocketMap;
-typedef std::pair<int,SocketPtr> SocketItem;
-typedef SocketMap::iterator SocketIterator;
 
 class Socket : public IODevice
 {
@@ -27,11 +20,10 @@ public:
 	virtual bool connect(const sockaddr_in &addr);
 	virtual bool listen();
 	virtual bool isStreamed() const;
-	virtual bool accept(SocketPtr &client) = 0;
+	virtual bool accept(IODevicePtr &client) = 0;
 	std::string toString() const;
-	int setBlocking(bool state = true);
 
-	static SocketPtr factory(const char *protoName, const char *ip,
+	static IODevicePtr factory(const char *protoName, const char *ip,
 							  unsigned int port);
 
 protected:

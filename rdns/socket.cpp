@@ -2,7 +2,6 @@
 #include <cstdio>
 #include <sstream>
 #include <arpa/inet.h>
-#include <fcntl.h>
 #include "socket.h"
 #include "tcpsocket.h"
 #include "udpsocket.h"
@@ -81,25 +80,14 @@ string Socket::toString() const
 	return stream.str();
 }
 
-int Socket::setBlocking(bool state)
-{
-	int flags;
-
-	if ((flags = fcntl(_fd, F_GETFL, 0)) == -1) {
-		flags = 0;
-	}
-	return fcntl(_fd, F_SETFL, state? flags & ~O_NONBLOCK : flags | O_NONBLOCK);
-}
-
-
-SocketPtr Socket::factory(const char *protoName, const char *ip,
+IODevicePtr Socket::factory(const char *protoName, const char *ip,
 							unsigned int port)
 {
 	string name(protoName);
 	if (name == "UDP") {
-		return SocketPtr(new UDPSocket(ip, port));
+		return IODevicePtr(new UDPSocket(ip, port));
 	} else if (name == "TCP") {
-		return SocketPtr(new TCPSocket(ip, port));
+		return IODevicePtr(new TCPSocket(ip, port));
 	}
-	return SocketPtr();
+	return IODevicePtr();
 }
