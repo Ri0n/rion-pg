@@ -120,6 +120,11 @@ void IODevice::setReadyOnly(bool state)
 	_readOnly = state;
 }
 
+void IODevice::setPersistent(bool state)
+{
+	_persistent = state;
+}
+
 std::string IODevice::toString() const
 {
 	std::ostringstream stream;

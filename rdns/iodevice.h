@@ -31,6 +31,8 @@ public:
 	virtual void setReadyRead();
 	void setReadyReadHandler(CallbackPtr);
 	void setReadyOnly(bool state = true);
+	void setPersistent(bool state = true);
+	virtual bool isPersistent() const { return _persistent; }
 
 	virtual std::string toString() const;
 	static void dump(const char *prefix, const unsigned char *buf, size_t count);
@@ -39,6 +41,7 @@ protected:
 	int _fd;
 	bool _readyRead;
 	bool _readOnly;
+	bool _persistent;
 	CallbackPtr _readyReadCallback;
 };
 

@@ -47,8 +47,7 @@ void Timer::start()
 void Timer::stop()
 {
 	itimerspec sv;
-	sv.it_value.tv_sec = 0;
-	sv.it_value.tv_nsec = 0;
+	memset((char *)&sv, 0, sizeof(sv));
 	if (timerfd_settime(_fd, 0, &sv, NULL) == -1) {
 		perror("timerfd_settime:stop");
 	}

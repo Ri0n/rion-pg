@@ -78,15 +78,15 @@ int Epoll::wait()
 		IODeviceIterator si = _watches.find(events[i].data.fd);
 		if (si != _watches.end()) {
 			cout << "received events: " << events[i].events << "\n";
-			if (events[i].events & (EPOLLHUP | EPOLLERR | EPOLLRDHUP)) {
+			if (events[i].events & (EPOLLHUP | EPOLLERR | EPOLLRDHUP) &&
+					!((*si).second)->isPersistent()) {
 				(*si).second->setReadyOnly(true); // maybe something like aboutToClose ?
 			}
 			if (events[i].events & EPOLLIN) {
 				(*si).second->setReadyRead();
 			}
-			if (events[i].events & (EPOLLHUP | EPOLLERR | EPOLLRDHUP)) {
-				// TODO check is we are removing some major things like remote dns or timer
-				// this should never happen
+			if (events[i].events & (EPOLLHUP | EPOLLERR | EPOLLRDHUP) &&
+					!((*si).second)->isPersistent()) {
 				removeWatch((*si).first); // destructor will close internal socket
 			}
 		}

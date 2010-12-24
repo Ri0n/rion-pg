@@ -164,5 +164,21 @@ void DNSService::onRemoteReadyRead()
 void DNSService::onTimeout()
 {
 	cout << "Check requests for timeouts\n";
+	// it's not too effective to iterate over all pending requests
+	// but there are should not be too many requests at each moment of time
+	// excluding a case when remote server is really down. moreover this
+	// function is called one time per DNSRequestTTL period which is quite long.
+	for (DNSRequestIterator ri = _requests.begin(); ri != _requests.end();) {
+		if ((*ri).second->isExpired()) {
+			cout << "Remove timed out request\n";
+			_requests.erase(ri++);
+		}
+		else {
+			ri++;
+		}
+	}
+	if (_requests.empty()) {
+		((Timer*)_timer.get())->stop();
+	}
 }
 
