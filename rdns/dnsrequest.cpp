@@ -4,8 +4,9 @@
 namespace rdns
 {
 
-DNSRequest::DNSRequest(uint16_t id, const sockaddr_in &client)
+DNSRequest::DNSRequest(uint16_t id, std::string &dname, const sockaddr_in &client)
 	: _id(id)
+	, _domainName(dname)
 	, _clientAddr(client)
 {
 	clock_gettime(CLOCK_MONOTONIC, &_time);

@@ -111,7 +111,7 @@ void DNSService::onReadyRead()
 		}
 		else {
 			DNSMessagePtr message = DNSMessage::fromByteArray(buf, cnt);
-			if (message.get()) {
+			if (message.get() && !message->isResponse()) {
 				cout << "Received new dns request: " << message->toString() << "\n";
 				std::string dname = message->domainName();
 				// harcode words. no time to do smth more smart.
@@ -123,7 +123,7 @@ void DNSService::onReadyRead()
 					message->writeTo(socket);
 				}
 				else {
-					DNSRequest *request = new DNSRequest(message->id(),
+					DNSRequest *request = new DNSRequest(message->id(), dname,
 														 ((UDPSocket*)socket.get())->endPoint());
 					if (_requests.empty()) { // timer not started yet
 						((Timer*)_timer.get())->start();
@@ -151,8 +151,10 @@ void DNSService::onRemoteReadyRead()
 		DNSMessagePtr message = DNSMessage::fromByteArray(buf, cnt);
 		DNSRequestIterator ri = _requests.find(message->id());
 		if (ri != _requests.end()) {
-			((UDPSocket*)socket.get())->setEndPoint((*ri).second->clientAddress());
-			message->writeTo(socket);
+			if ((*ri).second->domainName() == message->domainName()) {
+				((UDPSocket*)socket.get())->setEndPoint((*ri).second->clientAddress());
+				message->writeTo(socket);
+			}
 			_requests.erase(message->id());
 		}
 		if (_requests.empty()) {
