@@ -12,7 +12,7 @@ public:
     DomainName();
 
 	size_t fromByteArray(const unsigned char *buf, size_t count);
-	std::string toString() const { return _name; }
+	const std::string &toString() const { return _name; }
 
 private:
 	std::string _name;

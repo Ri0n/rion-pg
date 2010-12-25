@@ -13,8 +13,8 @@ public:
     Uri();
 	Uri(const char *uri);
 
-	inline std::string scheme() const { return _scheme; }
-	inline std::string host() const { return _host; }
+	inline const std::string &scheme() const { return _scheme; }
+	inline const std::string &host() const { return _host; }
 	inline uint16_t port() const { return _port; }
 
 	inline void setScheme(const char *);
