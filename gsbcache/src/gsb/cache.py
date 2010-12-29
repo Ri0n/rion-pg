@@ -3,7 +3,7 @@ Created on 28.12.2010
 
 @author: rion
 '''
-class GSBCache(object):
+class Cache(object):
     def __init__(self, listName):
         self.listName = listName
         

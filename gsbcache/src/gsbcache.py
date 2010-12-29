@@ -4,8 +4,10 @@ Created on 28.12.2010
 @author: rion
 '''
 
-from gsb import GSBClient
+import os
+from gsb import Client
 
 if __name__ == '__main__':
-    client = GSBClient()
-    client.update()
+    client = Client(os.path.join(os.path.dirname(__file__), "data"))
+    #print client.getLists()
+    client.update("goog-malware-shavar")

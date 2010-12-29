@@ -1,5 +1,5 @@
-from gsb.client import GSBClient
-from gsb.cache import GSBCache
+from gsb.client import Client
+from gsb.cache import Cache
 
 
-__all__=["GSBClient", "GSBCache"]
+__all__=["Client", "Cache"]
