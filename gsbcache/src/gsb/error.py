@@ -9,5 +9,7 @@ class HttpError(Exception):
         self.reason = reason
         
     def __str__(self):
-        return "HTTP Error ($s: %s)" % (self.status, self.reason)
+        return "HTTP Error (%s: %s)" % (str(self.status), str(self.reason))
         
+class MalformedResponse(Exception):
+    pass
