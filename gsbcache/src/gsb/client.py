@@ -33,19 +33,23 @@ class Client(object):
         if not os.path.exists(storage):
             os.makedirs(storage, 0755)
             
-        self.config = ConfigParser.ConfigParser()
+        self.config = ConfigParser.ConfigParser({
+            "last-update" : datetime.datetime(1970, 1, 1),
+            "mac-key" : self.defaultWrkey,
+            "new-key-required" : False,
+            "delayed-until" : 0,
+            "next-delay" : 2
+        })
         self.config.read(os.path.join(storage, self.configFile))
         
-        try:
-            self.lastUpdate = datetime.datetime.fromtimestamp(
-                                    self.config.getint("DEFAULT", "last-update"))
-        except:
-            self.lastUpdate = datetime.datetime(1970, 1, 1)
-            
-        try:
-            self.mac = self.config.get("DEFAULT", "mac-key")
-        except:
-            self.mac = self.defaultWrkey
+        self.lastUpdate = datetime.datetime.fromtimestamp(
+                                self.config.getint("DEFAULT", "last-update"))
+        self.delayedUntil = datetime.datetime.fromtimestamp(
+                                self.config.getint("DEFAULT", "delayed-until"))
+        self.nextDelay = self.config.getint("DEFAULT", "next-delay")
+        
+        self.mac = self.config.get("DEFAULT", "mac-key")
+        
                  
     def __del__(self):
         with open(os.path.join(self.storage, self.configFile), 'wb') as cf:
@@ -63,6 +67,9 @@ class Client(object):
             raise HttpError(r.status, r.reason)
         return r.read()
 
+
+    def isReady(self):
+        return self.delayedUntil < datetime.datetime.today()
             
     def getLists(self):
         while (True):

@@ -13,9 +13,10 @@ if __name__ == '__main__':
         os.path.join(os.path.dirname(__file__), "ssl.key"),
         os.path.join(os.path.dirname(__file__), "ssl.crt")
     )
-    #print client.getLists()
-    #client.update("goog-malware-shavar")
+    
     try:
-        client.updateKey()
+        #print client.getLists()
+        client.update("goog-malware-shavar")
+        #client.updateKey()
     except Exception, e:
         print str(e)
