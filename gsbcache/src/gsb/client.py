@@ -4,13 +4,11 @@ Created on 28.12.2010
 @author: rion
 '''
 
-import os
-import time
 import datetime
-import ConfigParser
 import httplib
 
 from gsb.error import HttpError, MalformedResponse
+from gsb.config import Config
 
 
 class Client(object):
@@ -18,46 +16,20 @@ class Client(object):
     host = "safebrowsing.clients.google.com"
     keyHost = "sb-ssl.google.com"
     uri = "/safebrowsing/"
-    #baseUrl = "http://" + host + "/safebrowsing/"
+    
     ffVer = "3.6.13"
     pver = "2.2"
-    
-    configFile = "config.ini"
+
+    # gotten from logs    
     defaultWrkey = "AKEgNit_MOYot7yU_tKwygYRBvj_k-aTBU1fx0pQZvRDUd1RM4B5TAqT5cwzuQwnB9ZxeRhwPm7kY1pZS7NFU5m46DeeOyo_4Q=="
     
-    def __init__(self, storage, sslKey, sslCert):
-        self.storage = storage
-        self.sslKey = sslKey
-        self.sslCert = sslCert
-        print storage
-        if not os.path.exists(storage):
-            os.makedirs(storage, 0755)
-            
-        self.config = ConfigParser.ConfigParser({
-            "last-update" : datetime.datetime(1970, 1, 1),
-            "mac-key" : self.defaultWrkey,
-            "new-key-required" : False,
-            "delayed-until" : 0,
-            "next-delay" : 2
-        })
-        self.config.read(os.path.join(storage, self.configFile))
-        
-        self.lastUpdate = datetime.datetime.fromtimestamp(
-                                self.config.getint("DEFAULT", "last-update"))
-        self.delayedUntil = datetime.datetime.fromtimestamp(
-                                self.config.getint("DEFAULT", "delayed-until"))
-        self.nextDelay = self.config.getint("DEFAULT", "next-delay")
-        
-        self.mac = self.config.get("DEFAULT", "mac-key")
-        
-                 
-    def __del__(self):
-        with open(os.path.join(self.storage, self.configFile), 'wb') as cf:
-            self.config.write(cf)
-            
+    def __init__(self):
+        pass
+
     def _makeUri(self, method):
+        mac = Config.instance().get("mac-key")
         return self.uri + str(method) + ("?client=Firefox&appver="+self.ffVer+
-                                         "&pver="+self.pver+"&wrkey=" +self.mac)
+                                         "&pver="+self.pver+"&wrkey=" + mac)
         
     def _request(self, method, body = "", conn = None):
         conn = conn or httplib.HTTPConnection(self.host)
@@ -87,7 +59,7 @@ class Client(object):
         conn.request("POST", self._makeUri("downloads"), headers={"Content-Length" : 0})
         
             
-        self.config.set("DEFAULT", "last-update", str(int(time.time())))
+        #Config.instance().set("last-update", str(int(time.time())))
             
     def updateKey(self):
         data = self._request("newkey", conn=httplib.HTTPSConnection(self.keyHost, 443,
@@ -102,5 +74,5 @@ class Client(object):
             keys[name] = value
             
         self.mac = keys["wrappedkey"]
-        self.config.set("DEFAULT", "mac-key", self.mac)
+        Config.instance().set("mac-key", self.mac)
         # here is also `clientkey` in the dict

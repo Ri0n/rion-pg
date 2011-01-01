@@ -5,18 +5,42 @@ Created on 28.12.2010
 '''
 
 import os
-from gsb import Client
+import argparse
+
+from gsb import Client, Config
 
 if __name__ == '__main__':
-    client = Client(
-        os.path.join(os.path.dirname(__file__), "data"),
-        os.path.join(os.path.dirname(__file__), "ssl.key"),
-        os.path.join(os.path.dirname(__file__), "ssl.crt")
-    )
     
-    try:
-        #print client.getLists()
-        client.update("goog-malware-shavar")
+    parser = argparse.ArgumentParser(description='Keep google safe browsing cache.')
+    parser.add_argument('-c', '--config', dest='config', metavar="configFile",
+           help='set configuration file location (must be writable)')
+    
+    args = parser.parse_args()
+    if args.config:
+        Config.init(args.config)
+    else: # our self-created testing config
+        storage = os.path.join(os.path.dirname(__file__), "data")
+        if not os.path.exists(storage):
+            os.makedirs(storage, 0755)
+        Config.init(os.path.join(storage, "config.ini"))
+        Config.instance().set("storage", storage)
+        Config.instance().set("ssl-key-file",
+                              os.path.join(os.path.dirname(__file__), "ssl.key"))
+        Config.instance().set("ssl-crt-file",
+                              os.path.join(os.path.dirname(__file__), "ssl.crt"))
+        try:
+            Config.instance().get("mac-key")
+        except:
+            Config.instance().set("mac-key",
+                                  "AKEgNit_MOYot7yU_tKwygYRBvj_k-aTBU1fx0pQZvRDUd1RM4B5TAqT5cwzuQwnB9ZxeRhwPm7kY1pZS7NFU5m46DeeOyo_4Q==")
+        
+    client = Client()
+    
+    #try:
+    print client.getLists()
+    Config.instance().save()
+    
+        #client.update("goog-malware-shavar")
         #client.updateKey()
-    except Exception, e:
-        print str(e)
+    #except Exception, e:
+    #    print str(e)
