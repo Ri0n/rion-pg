@@ -15,4 +15,10 @@ class Cache(object):
     
     def clear(self):
         pass
-        
+    
+    def getAddList(self):
+        return []
+    
+    def getSubList(self):
+        return []
+    

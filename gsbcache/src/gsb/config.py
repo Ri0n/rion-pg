@@ -4,9 +4,10 @@ Created on 01.01.2011
 @author: rion
 '''
 
-import os
-import datetime
 import ConfigParser
+
+class NoValue:
+    pass
 
 class Config(object):
     '''
@@ -17,10 +18,10 @@ class Config(object):
     def __init__(self):
         assert len(self._confFile)
         self._parser = ConfigParser.ConfigParser({
-            "last-update" : datetime.datetime(1970, 1, 1),
             "new-key-required" : False,
-            "delayed-until" : 0,
-            "next-delay" : 2
+            "use-mac" : False,
+            "last-errors-amount" : 0,
+            "delayed-until" : 0
         })
         self._parser.read(self._confFile)
         
@@ -41,8 +42,20 @@ class Config(object):
             cls.__init__ = singletonRaiser
         return cls._instance
     
-    def get(self, option, section = "DEFAULT"):
-        return self._parser.get(section, option)
+    def get(self, option, defaultValue = NoValue(), method = None):
+        try:
+            return getattr(self._parser, method)("DEFAULT", option) \
+                if method else self._parser.get("DEFAULT", option)
+        except:
+            if isinstance(defaultValue, NoValue):
+                raise
+            return defaultValue
+        
+    def getint(self, option, defaultValue = NoValue()):
+        return self.get(option, defaultValue, "getint")
     
-    def set(self, option, value, section = "DEFAULT"):
-        return self._parser.set(section, option, value)
+    def getboolean(self, option, defaultValue = NoValue()):
+        return self.get(option, defaultValue, "getboolean")
+    
+    def set(self, option, value):
+        return self._parser.set("DEFAULT", option, value)

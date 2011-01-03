@@ -1,0 +1,8 @@
+gsbcache - tool to keep google safe browsing cache in plain text files.
+
+Start w/o options to generate example configuration file and
+just to be sure it works. This demo start will create "data"
+dir near gsbcache.py script and put example config file there.
+
+try now and have fun ;)
+ 

@@ -6,6 +6,7 @@ Created on 28.12.2010
 
 import os
 import argparse
+import pprint
 
 from gsb import Client, Config
 
@@ -36,11 +37,10 @@ if __name__ == '__main__':
         
     client = Client()
     
-    #try:
-    print client.getLists()
-    Config.instance().save()
-    
-        #client.update("goog-malware-shavar")
+    try:
+        #print client.getLists()
+        pprint.pprint(client.downloadList("goog-malware-shavar", "googpub-phish-shavar"))
         #client.updateKey()
-    #except Exception, e:
-    #    print str(e)
+    finally:    
+        Config.instance().save()
+    
