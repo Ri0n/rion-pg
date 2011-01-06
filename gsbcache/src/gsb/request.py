@@ -33,6 +33,27 @@ class Request(object):
     #APIVersion = "2.2"
     
     def __init__(self, url):
+        standardParams = self._standardParams()
+        if standardParams:
+            parts = urlparse.urlsplit(url, "http")
+            query = parts.query + ("&" + standardParams if parts.query else standardParams)
+            parts = list(parts)
+            parts[3] = query
+            url = urlparse.urlunsplit(parts)
+        self._httpreq = urllib2.Request(url)
+            
+    def send(self, body = ""):
+        print("send: %s" % body)
+        self._httpreq.add_data(body)
+        f = urllib2.urlopen(self._httpreq)
+        data = f.read()
+        print("read: %s" % data)
+        return data
+
+    def url(self):
+        return self._httpreq.get_full_url()
+    
+    def _standardParams(self):
         # lets it will be here for a while
         standardParams = "client="+self.ClientName+"&appver=" + self.ClientVersion + \
                         "&pver="+self.APIVersion
@@ -40,20 +61,7 @@ class Request(object):
         if self._useMac:
             standardParams += ("&wrkey=" + Config.instance().get("mac-key"))
         
-        parts = urlparse.urlsplit(url, "http")
-        query = parts.query + ("&" + standardParams if parts.query else standardParams)
-        parts = list(parts)
-        parts[3] = query
-        self._conn = urllib2.Request(urlparse.urlunsplit(parts))
-            
-    def send(self, body = ""):
-        print("send: %s" % body)
-        self._conn.add_data(body)
-        f = urllib2.urlopen(self._conn)
-        data = f.read()
-        print("read: %s" % data)
-        return data
-
+        return standardParams
 
 
 
@@ -185,6 +193,32 @@ class DownloadRequest(NormalRequest):
     
     def nextDelay(self):
         return self._nextDelay
+
+
+
+class RedirectRequest(Request):
+    def __init__(self, url):
+        Request.__init__(self, "http://" + url)
+        
+    def _standardParams(self):
+        return ""
+        
+    def send(self):
+        print "requesting: " + self.url()
+        fp = urllib2.urlopen(self._httpreq)
+        chunks = []
+        while (True):
+            l = fp.readline()
+            if not l:
+                break
+            cType, cNum, hashLen, cLen = l.strip().split(":")
+            cLen = int(cLen)
+            chunk = fp.read(cLen) if cLen else ""
+            chunks.append({"type": cType, "index": int(cNum),
+                           "hash_len": int(hashLen), "data": chunk})
+        print "parsed: " + self.url()
+        return chunks
+            
 
 
 class SecureRequest(Request):

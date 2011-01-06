@@ -39,7 +39,7 @@ if __name__ == '__main__':
     
     try:
         #print client.getLists()
-        pprint.pprint(client.downloadList("goog-malware-shavar", "googpub-phish-shavar"))
+        pprint.pprint(client.downloadList("goog-malware-shavar"))
         #client.updateKey()
     finally:    
         Config.instance().save()

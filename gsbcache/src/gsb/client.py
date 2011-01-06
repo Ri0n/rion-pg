@@ -11,8 +11,18 @@ from urllib2 import HTTPError
 
 from gsb.config import Config
 from gsb.cache import Cache
-from gsb.request import NewKeyRequest, ListRequest, DownloadRequest
-from gsb.error import OutOfTriesError, MalformedResponseError
+from gsb.request import (
+    NewKeyRequest,
+    ListRequest,
+    DownloadRequest,
+    RedirectRequest
+)
+from gsb.error import (
+    OutOfTriesError,
+    MalformedResponseError,
+    UnsupportedListFormat
+)
+from gsb.chunk import ShavarChunk, Chunk
 
 class Client(object):
     
@@ -86,12 +96,29 @@ class Client(object):
     
     def downloadList(self, *names):
         def do():
-            req = DownloadRequest()
+            dlReq = DownloadRequest()
             for n in names:
                 cache = self.getCache(n)
-                req.addList(n, cache.getAddList(), cache.getSubList())
-            result = req.send()
-            return self.StatusDone, result
+                dlReq.addList(n, cache.getAddList(), cache.getSubList())
+            lists = dlReq.send()
+            for listName, props in lists.iteritems():
+                nameParts = listName.split("-")
+                if nameParts[2] != "shavar":
+                    raise UnsupportedListFormat(nameParts[2] + "is not supported")
+                    
+                props["chunks"] = {}
+                for url in props["urls"]:
+                    rReq = RedirectRequest(url)
+                    # on embed devices its better to save request result
+                    # into some temporary file
+                    chunks = rReq.send()
+                    props["chunks"][url] = []
+                    for c in chunks:
+                        props["chunks"][url].append(ShavarChunk(c["index"],
+                            Chunk.TypeAdd if c["type"] == 'a' else Chunk.TypeSub,
+                            c["hash_len"], c["data"]))
+                
+            return self.StatusDone, lists
             
         return self._requestRepeater(do)
             

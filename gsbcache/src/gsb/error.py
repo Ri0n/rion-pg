@@ -3,9 +3,15 @@ Created on 30.12.2010
 
 @author: rion
 '''
-        
-class MalformedResponseError(Exception):
+
+class GSBError(Exception):
     pass
 
-class OutOfTriesError(Exception):
+class MalformedResponseError(GSBError):
+    pass
+
+class OutOfTriesError(GSBError):
+    pass
+
+class UnsupportedListFormat(GSBError):
     pass
