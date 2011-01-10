@@ -16,13 +16,14 @@ from gsb.request import (
     ListRequest,
     DownloadRequest,
     RedirectRequest
-)
+, Request)
 from gsb.error import (
     OutOfTriesError,
     MalformedResponseError,
     UnsupportedListFormat
 )
 from gsb.chunk import ShavarChunk, Chunk
+import base64
 
 class Client(object):
     
@@ -33,6 +34,12 @@ class Client(object):
     
     def __init__(self):
         self._lists = {}
+        c = Config.instance()
+        if c.getboolean("use-mac"):
+            if c.getboolean("new-key-required") or not c.get("wrappedkey", ""):
+                self.updateKey()
+            Request.WrappedKey = c.get("wrappedkey")
+            Request.ClientKey = base64.urlsafe_b64decode(c.get("clientkey"))
 
     def isReady(self):
         return datetime.datetime.fromtimestamp(
@@ -106,18 +113,24 @@ class Client(object):
                 if nameParts[2] != "shavar":
                     raise UnsupportedListFormat(nameParts[2] + "is not supported")
                     
-                props["chunks"] = {}
+                props["chunks"] = []
                 for url in props["urls"]:
                     rReq = RedirectRequest(url)
                     # on embed devices its better to save request result
                     # into some temporary file
                     chunks = rReq.send()
-                    props["chunks"][url] = []
                     for c in chunks:
-                        props["chunks"][url].append(ShavarChunk(c["index"],
+                        props["chunks"].append(ShavarChunk(c["index"],
                             Chunk.TypeAdd if c["type"] == 'a' else Chunk.TypeSub,
                             c["hash_len"], c["data"]))
-                
+            
+            # data is fully parsed now, lets put it into cache
+            for listName, props in lists.iteritems():
+                cache = self.getCache(listName)
+                cache.updateChunks(props["chunks"])
+                cache.deleteAddChunks(props["adddel"])
+                cache.deleteSubChunks(props["subdel"])
+            
             return self.StatusDone, lists
             
         return self._requestRepeater(do)
@@ -130,7 +143,8 @@ class Client(object):
             
         self._setNeedKey(True)
         keys = self._requestRepeater(do)
-        self.mac = keys["wrappedkey"]
-        Config.instance().set("mac-key", self.mac)
+        Config.instance().set("wrappedkey", keys["wrappedkey"])
+        Config.instance().set("clientkey", keys["clientkey"])
+        Request.WrappedKey = keys["wrappedkey"]
+        Request.ClientKey = base64.urlsafe_b64decode(keys["clientkey"])
         self._setNeedKey(False)
-        # here is also `clientkey` in the dict

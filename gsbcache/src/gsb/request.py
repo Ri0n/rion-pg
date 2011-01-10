@@ -16,8 +16,11 @@ ok w/o additional manipulations =)
 import urlparse
 import urllib2
 from gsb.config import Config
-from gsb.error import MalformedResponseError
+from gsb.error import MalformedResponseError, MacCheckFailed
 import datetime
+import base64
+import hashlib
+import hmac
 
 class Request(object):
     '''
@@ -32,6 +35,9 @@ class Request(object):
     #ClientVersion = "3.6.9"
     #APIVersion = "2.2"
     
+    WrappedKey = None
+    ClientKey = None
+    
     def __init__(self, url):
         standardParams = self._standardParams()
         if standardParams:
@@ -42,7 +48,7 @@ class Request(object):
             url = urlparse.urlunsplit(parts)
         self._httpreq = urllib2.Request(url)
             
-    def send(self, body = ""):
+    def send(self, body=""):
         print("send: %s" % body)
         self._httpreq.add_data(body)
         f = urllib2.urlopen(self._httpreq)
@@ -55,11 +61,11 @@ class Request(object):
     
     def _standardParams(self):
         # lets it will be here for a while
-        standardParams = "client="+self.ClientName+"&appver=" + self.ClientVersion + \
-                        "&pver="+self.APIVersion
+        standardParams = "client=" + self.ClientName + "&appver=" + self.ClientVersion + \
+                        "&pver=" + self.APIVersion
         self._useMac = Config.instance().getboolean("use-mac")
         if self._useMac:
-            standardParams += ("&wrkey=" + Config.instance().get("mac-key"))
+            standardParams += ("&wrkey=" + Request.WrappedKey)
         
         return standardParams
 
@@ -72,15 +78,18 @@ class NormalRequest(Request):
     
     Rekey = "e:pleaserekey"
     
-    def __init__(self, uri = ""):
+    def __init__(self, uri=""):
         self._needNewKey = False
         Request.__init__(self, "http://safebrowsing.clients.google.com/safebrowsing/" + uri)
         
     def needNewKey(self):
         return self._needNewKey
     
-    def validateMac(self, mac):
-        return # TODO validate it. compare with generated hmac from client key
+    def validateMac(self, mac, data):
+#        if hmac.new(self.ClientKey, data, hashlib.sha1).digest() != \
+#            base64.urlsafe_b64decode(mac):
+#            raise MacCheckFailed("mac %s is invalid" % mac)
+        return # check if lines above are working
 
 
 
@@ -100,7 +109,7 @@ class ListRequest(NormalRequest):
             if data.startswith(self.Rekey):
                 self._needNewKey = True
                 return
-            self.validateMac(lines[0])
+            self.validateMac(lines[0], data) # FIXME possible invalid data param
             return lines[1:]
         return lines
 
@@ -123,7 +132,7 @@ class DownloadRequest(NormalRequest):
     def setSize(self, size):
         self._size = size
         
-    def addList(self, name, aList = [], sList = []):
+    def addList(self, name, aList=[], sList=[]):
         self._lists.append((name, aList, sList))
         
     def send(self):
@@ -158,11 +167,11 @@ class DownloadRequest(NormalRequest):
             if l == self.Rekey:
                 self._needNewKey = True
             else:
-                self.validateMac(l)
+                self.validateMac(l, data) # FIXME data
         next = lines.pop(0)
         if not next.startswith("n:"):
             raise MalformedResponseError('NEXT expected')
-        self._nextDelay = datetime.timedelta(seconds = int(next[2:]))
+        self._nextDelay = datetime.timedelta(seconds=int(next[2:]))
         
         if lines[0].startswith("r:pleasereset"):
             self._needReset = True
@@ -173,7 +182,7 @@ class DownloadRequest(NormalRequest):
             if not len(lines):
                 break
             key, listName = lines.pop(0).split(":")
-            if key ==  "i":
+            if key == "i":
                 self._responseLists[listName] = {"urls": [], "adddel": [], "subdel": []}
                 while len(lines) and not lines[0].startswith("i:"):
                     l = lines.pop(0)
@@ -214,6 +223,7 @@ class RedirectRequest(Request):
             cType, cNum, hashLen, cLen = l.strip().split(":")
             cLen = int(cLen)
             chunk = fp.read(cLen) if cLen else ""
+            print "chunk data: ", chunk.encode("hex")
             chunks.append({"type": cType, "index": int(cNum),
                            "hash_len": int(hashLen), "data": chunk})
         print "parsed: " + self.url()
@@ -222,7 +232,7 @@ class RedirectRequest(Request):
 
 
 class SecureRequest(Request):
-    def __init__(self, uri = ""):
+    def __init__(self, uri=""):
         Request.__init__(self, "https://sb-ssl.google.com/safebrowsing/" + uri)
 
 
@@ -231,7 +241,12 @@ class SecureRequest(Request):
 class NewKeyRequest(SecureRequest):
     def __init__(self):
         SecureRequest.__init__(self, "newkey")
-        
+    
+    def _standardParams(self):
+        # lets it will be here for a while
+        return "client=" + self.ClientName + "&appver=" + self.ClientVersion + \
+                "&pver=" + self.APIVersion
+    
     def send(self):
         data = SecureRequest.send(self)
         lines = data.strip().split("\n")
@@ -239,7 +254,7 @@ class NewKeyRequest(SecureRequest):
         for l in lines:
             name, size, value = l.split(":")
             if int(size) != len(value):
-                raise MalformedResponseError("actual(%d) and given(%d) sizes of key %s do not match" %
+                raise MalformedResponseError("actual(%d) and given(%d) sizes of key %s do not match" % 
                                         (len(value), int(size), name))
             keys[name] = value
         return keys

@@ -15,3 +15,9 @@ class OutOfTriesError(GSBError):
 
 class UnsupportedListFormat(GSBError):
     pass
+
+class MacCheckFailed(GSBError):
+    pass
+
+class AlreadyInList(GSBError):
+    pass

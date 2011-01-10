@@ -29,11 +29,6 @@ if __name__ == '__main__':
                               os.path.join(os.path.dirname(__file__), "ssl.key"))
         Config.instance().set("ssl-crt-file",
                               os.path.join(os.path.dirname(__file__), "ssl.crt"))
-        try:
-            Config.instance().get("mac-key")
-        except:
-            Config.instance().set("mac-key",
-                                  "AKEgNit_MOYot7yU_tKwygYRBvj_k-aTBU1fx0pQZvRDUd1RM4B5TAqT5cwzuQwnB9ZxeRhwPm7kY1pZS7NFU5m46DeeOyo_4Q==")
         
     client = Client()
     
