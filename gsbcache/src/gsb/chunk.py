@@ -154,6 +154,14 @@ class ChunkNumbersList(list):
         if start == end == 0:
             return -1, False
         return start, False
+    
+    def iterAll(self):
+        for n in self:
+            if type(n) == tuple:
+                for n in xrange(n[0], n[1] + 1):
+                    yield n
+            else:
+                yield n
         
     @classmethod
     def fromString(cls, s):
