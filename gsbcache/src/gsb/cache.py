@@ -2,6 +2,42 @@
 Created on 28.12.2010
 
 @author: rion
+
+created files:
+listname.ini - stores chunk numbers and maybe some other data 
+listname.chunks - "add" chunks headers
+listname.chunksdata - "add" chunks prefixes
+listname.hosts - host keys with hashes reference
+listname.hashes - hashes partial or full and their state
+
+
+lookup process
+1) compute host key
+2) lookup hostkey in listname.hosts table. return false if not found
+3) if hostkey doesn't have prefixes(hashesOffset = -1) then its a match, return true
+4) read hashes from listname.hashes by prefix hashesOffset
+5) canonicalize full url and lookup prefix. return false if not found
+6) if hash is not full hash, request it from google and update listname.hashes table
+7) check full hashes for match, return true if found
+8) return false
+
+listname.hosts (random access):
+hostkey - 32 bit
+hashesOffset = 32bit (-1 for no prefixes)
+
+listname.hashes(sequential access):
+hashesAmount = 16bit
+hashes = prAmount * 9 bytes (hash - 8 bytes, current size - 1 byte)
+
+listname.chunks (random access):
+chunkNumber - 32bit
+hashLen - 8bit
+prefixesAmount - 16bit
+dataOffset - 32bit
+
+listname.chunksdata(sequential access):
+prefixes - prefixesAmount * hashLen bytes
+
 '''
 
 import os
