@@ -4,6 +4,11 @@ Created on 11.01.2011
 @author: rion
 '''
 
+from gsb.extra import RangedMap
+
+class FileMap(RangedMap):
+    pass
+
 class StructuredFile(object):
     def __init__(self, filename, itemSize, reader, serializer):
         self._fileName = filename

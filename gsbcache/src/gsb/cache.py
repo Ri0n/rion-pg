@@ -43,18 +43,17 @@ prefixes - prefixesAmount * hashLen bytes
 import os
 
 from gsb.config import ConfigBase, Config
+from gsb.extra import NumbersList
 
 class CacheConfig(ConfigBase):
     def addList(self):
-        from gsb.chunk import ChunkNumbersList
-        return ChunkNumbersList.fromString(self.get("add-list", ""))
+        return NumbersList.fromString(self.get("add-list", ""))
     
     def setAddList(self, l):
         self.set("add-list", l.toString())
         
     def subList(self):
-        from gsb.chunk import ChunkNumbersList
-        return ChunkNumbersList.fromString(self.get("sub-list", ""))
+        return NumbersList.fromString(self.get("sub-list", ""))
     
     def setSubList(self, l):
         self.set("sub-list", l.toString())
