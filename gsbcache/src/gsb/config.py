@@ -53,8 +53,10 @@ class Config(ConfigBase):
         "new-key-required" : False,
         "use-mac" : False,
         "last-errors-amount" : 0,
-        "delayed-until" : 0
+        "delayed-until" : 0,
+        "memory-limit" : 100
     }
+    # memory-limit - Mb
     
     @classmethod
     def init(cls, confFile):

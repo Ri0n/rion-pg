@@ -214,25 +214,25 @@ class NumbersList(list):
                 if isinstance(c, tuple) else str(c) for c in self])
 
 
-class RangedMap(object):
-    def __init__(self, size, value):
-        self._keys = NumbersList()
-        self._keys.append((0, size))
-        self._values = [value]
-        
-    def __setitem__(self, index, value):
-        '''
-        Accepts tuple(start, end) or integer for `index` amd sets its `value`
-        '''
-        lenBefore = len(self._keys)
-        self._keys.append(index)
-        index = self._keys.indexOf(index)
-        if lenBefore == len(self._keys):
-            self._values[index] = value
-        elif lenBefore == len(self._keys) - 1:
-            self._values.insert(index, value)
-        else:
-            self._values[index:index] = [value, self._values[index]]
-            
-    def __getitem__(self, index):
-        pass
+#class RangedMap(object):
+#    def __init__(self, size, value):
+#        self._keys = NumbersList()
+#        self._keys.append((0, size))
+#        self._values = [value]
+#        
+#    def __setitem__(self, index, value):
+#        '''
+#        Accepts tuple(start, end) or integer for `index` amd sets its `value`
+#        '''
+#        lenBefore = len(self._keys)
+#        self._keys.append(index)
+#        index = self._keys.indexOf(index)
+#        if lenBefore == len(self._keys):
+#            self._values[index] = value
+#        elif lenBefore == len(self._keys) - 1:
+#            self._values.insert(index, value)
+#        else:
+#            self._values[index:index] = [value, self._values[index]]
+#            
+#    def __getitem__(self, index):
+#        pass
