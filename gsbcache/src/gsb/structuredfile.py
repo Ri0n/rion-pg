@@ -133,8 +133,40 @@ class StructuredSortedFile(StructuredFile):
 #            return super(StructuredSortedFile, self).write(obj)
 #        return super(StructuredSortedFile, self).insert(index, obj)
     
-    def seekKey(self, key):
-        pass # TODO implement =)
+    def seekKey(self, key, memoryLimit = None):
+        '''
+        Returns tuple (index of record, exact match)
+        if key is found then index will point exact to this record and exact flag = true,
+        otherwise index will point to element on left side if any or -1 if no one and
+        exact flag will be false.
+        '''
+        if not len(self):
+            return 0, False
+        
+        # TODO optimize by preloading more data when jump step starts to fit in memoryLimit
+        #availMem = memoryLimit or Config.instance().getint("memory-limit") * 1024 * 1024 # 100 - Mb
+        #availMem /= self._itemSize
+        
+        start = 0
+        end = len(self)
+        while start != end:
+            mid = int((start + end)/2)
+            if key < self._key(self[mid]):
+                if mid == end:
+                    return mid, False
+                end = mid
+                continue
+            if key > self._key(self[mid]):
+                if mid == start:
+                    return mid, False
+                start = mid
+                continue
+            return mid, True
+        
+        if start == end == 0:
+            return -1, False
+        return start, False
+        
     
     def sort(self, memoryLimit = None):
         '''
@@ -146,19 +178,19 @@ class StructuredSortedFile(StructuredFile):
         availMem /= self._itemSize # max amount of items in memory 
         if availMem < 3:
             raise MemoryError("insufficient memory for sorting")
-        allChunksAmount = len(self) / availMem + 1
-        chunkSize = len(self) / allChunksAmount
+        allChunksAmount = len(self) / availMem + (len(self) % availMem and 1)
+        #chunkSize = len(self) / allChunksAmount
         allChunks = []
         # sorting data in chunks
         for i in xrange(allChunksAmount):
-            self.seek(i * chunkSize)
-            data = self.read(chunkSize)
+            self.seek(i * availMem)
+            data = self.read(availMem)
             if not data:
                 break
             data.sort(key = self._key)
-            self.seek(i * chunkSize)
+            self.seek(i * availMem)
             self.write(data)
-            allChunks.append(dict(start=i * chunkSize, size=len(data), mergeOffset=0))
+            allChunks.append(dict(start=i * availMem, size=len(data), mergeOffset=0))
             
         # merging sorted chunks
         

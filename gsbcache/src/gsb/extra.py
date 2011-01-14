@@ -124,7 +124,7 @@ class NumbersList(list):
         return index if exact else -1
         
     def _bisectLeft(self, num):
-        if not self:
+        if not self: # len = 0
             return 0, False
         start = 0
         end = len(self)

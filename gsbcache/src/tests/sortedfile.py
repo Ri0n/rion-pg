@@ -55,12 +55,32 @@ class StructuredSortedFileTest(unittest.TestCase):
         self.sfile.truncate()
         
     def test_sort(self):
-        numbers = range(100, 200)
+        start = 105
+        finish = 5220
+        numbers = range(start, finish)
         shuffle(numbers)
         self.sfile.write(numbers)
-        self.sfile.sort(200)
+        self.sfile.sort(2000)
         self.maxDiff = None
-        self.assertEqual(self.sfile[0:100], range(100, 200))
+        self.assertEqual(self.sfile[0:finish - start], range(start, finish))
+        
+    def test_lookup(self):
+        start = 105
+        finish = 5220
+        keyIn = 5111
+        keyLeft = 99
+        keyRight = 9234
+        numbers = range(start, finish)
+        self.sfile.write(numbers)
+        index, exact = self.sfile.seekKey(keyIn)
+        self.assertTrue(exact)
+        self.assertEqual(index, keyIn - start)
+        index, exact = self.sfile.seekKey(keyLeft)
+        self.assertTrue(not exact)
+        self.assertEqual(index, -1)
+        index, exact = self.sfile.seekKey(keyRight)
+        self.assertTrue(not exact)
+        self.assertEqual(index, finish - start - 1)
         
 
 
