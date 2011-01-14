@@ -21,3 +21,9 @@ class MacCheckFailed(GSBError):
 
 class AlreadyInList(GSBError):
     pass
+
+class AlreadyOpened(GSBError):
+    pass
+
+class AlreadyClosed(GSBError):
+    pass

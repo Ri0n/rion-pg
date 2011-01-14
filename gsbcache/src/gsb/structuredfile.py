@@ -5,6 +5,7 @@ Created on 11.01.2011
 '''
 import os
 from gsb.config import Config
+from gsb.error import AlreadyOpened, AlreadyClosed
 
 #from gsb.extra import RangedMap
 
@@ -30,27 +31,41 @@ class StructuredFile(object):
         self._itemSize = itemSize
         self._reader = reader
         self._serializer = serializer
+        self._fp = None
+        self.open()
         
-        #self._buffer = {}
-        
-        if os.path.exists(filename):
-            self._fp = open(filename, 'r+b') # TODO check for errors
-            self._fileSize = os.path.getsize(filename)
-            assert self._fileSize % itemSize == 0, "Input file is corrupted"
+    def open(self):
+        if self._fp:
+            raise AlreadyOpened("file %s is already opened" % self._fileName)
+        if os.path.exists(self._fileName):
+            self._fp = open(self._fileName, 'r+b')
+            self._fileSize = os.path.getsize(self._fileName)
+            assert self._fileSize % self._itemSize == 0, "Input file is corrupted"
         else:
-            self._fp = open(filename, 'w+') # TODO check for errors
+            self._fp = open(self._fileName, 'w+')
             self._fileSize = 0
         self.seek(0)
         
+    def close(self):
+        if not self._fp:
+            raise AlreadyClosed("file %s is not opened" % self._fileName)
+        self._fp.close()
+        self._fp = None
+        
     def __del__(self):
         #self.flush()
-        self._fp.close()
+        if self._fp:
+            self.close()
         
     def __len__(self):
         return self._fileSize / self._itemSize
         
+    def truncate(self, n = 0):
+        self._fileSize = n * self._itemSize
+        self._fp.truncate(self._fileSize)
+        
     def seek(self, n):
-        self._seekPos = n * self._itemSize;
+        self._seekPos = n * self._itemSize
         self._fp.seek(n * self._itemSize)
         
     def read(self, n = 1):
@@ -73,9 +88,15 @@ class StructuredFile(object):
         if pos > self._fileSize:
             self._fileSize = pos
     
-    def __getitem__(self, index):
-        self.seek(index)
-        return self.read()
+    def __getitem__(self, item):
+        if isinstance(item, slice):
+            indices = item.indices(len(self))
+            self.seek(indices[0])
+            n = indices[1] - indices[0]
+            return self.read(n)[0:n:indices[2]]
+
+        self.seek(item)
+        return self.read()[0]
 
     def __setitem__(self, index, value):
         self.seek(index)
@@ -115,42 +136,21 @@ class StructuredSortedFile(StructuredFile):
     def seekKey(self, key):
         pass # TODO implement =)
     
-    def _merge(self, left, right):
-        result = []
-        i ,j = 0, 0
-        while i < len(left) and j < len(right):
-            if left[i] <= right[j]:
-                result.append(left[i])
-                i += 1
-            else:
-                result.append(right[j])
-                j += 1
-    
-        result += left[i:]
-        result += right[j:]
-        return result
-    
-    def _mergesort(self):
-        if len(list) < 2:
-            return list
-        else:
-            middle = len(list) / 2
-            left = self.sort(list[:middle])
-            right = self.sort(list[middle:])
-            return self._merge(left, right)
-
-    def sort(self):
+    def sort(self, memoryLimit = None):
+        '''
+        sorts file by key 
+        '''
         if len(self) < 2:
             return
-        availMem = Config.instance().getint("memory-limit") * 1024 * 1024 # 100 - Mb
+        availMem = memoryLimit or Config.instance().getint("memory-limit") * 1024 * 1024 # 100 - Mb
         availMem /= self._itemSize # max amount of items in memory 
         if availMem < 3:
             raise MemoryError("insufficient memory for sorting")
-        chunksAmount = len(self) / availMem + 1
-        chunkSize = len(self) / chunksAmount
-        chunks = []
+        allChunksAmount = len(self) / availMem + 1
+        chunkSize = len(self) / allChunksAmount
+        allChunks = []
         # sorting data in chunks
-        for i in xrange(chunksAmount):
+        for i in xrange(allChunksAmount):
             self.seek(i * chunkSize)
             data = self.read(chunkSize)
             if not data:
@@ -158,50 +158,64 @@ class StructuredSortedFile(StructuredFile):
             data.sort(key = self._key)
             self.seek(i * chunkSize)
             self.write(data)
-            chunks.append(dict(start=i * chunkSize, size=len(data), mergeOffset=0))
+            allChunks.append(dict(start=i * chunkSize, size=len(data), mergeOffset=0))
             
         # merging sorted chunks
         
-        # chunks - all chunks
+        # allChunks - all chunks
         # maxWays - maximum number of chunks per one merge
         # chunksGroup - maxWays or less of chunks participating in merge at some instant
-        # memPiece - RAM required to store one piece of chunk from chunksGroup (maxWays or less pieces loaded at once)
+        # chunkBufferSize - RAM required to store one piece of chunk from chunksGroup (maxWays or less pieces loaded at once)
+        # chunksGroupSize
+        
+        def loadNextPiece(i):
+            '''
+            Loads next piece of chunk into memory and saves current chunk offset.
+            Return false if not more pieces available
+            '''
+            c = chunksGroup[i]
+            if c["mergeOffset"] >= c["size"]:
+                return False
+            size = c["size"] - c["mergeOffset"] if c["mergeOffset"] + chunkBufferSize > c["size"] \
+                                                else chunkBufferSize
+            self.seek(c["start"] + c["mergeOffset"])
+            c["data"] = self.read(size) # small part of one chunk
+            c["mergeOffset"] += size
+            return True
+        
+        def bufferedOut(r = None):
+            '''
+            Puts record into buffer and flashes it bound is reached.
+            if `r` == None only buffer will be flashed unconditionally 
+            '''
+            if r:
+                outBuffer.append(r)
+            # flush buffer
+            if len(outBuffer) >= chunkBufferSize or (r == None and len(outBuffer)):
+                self._sortedOutFile.write(outBuffer)
+                outBuffer[:] = [] # clear buffer
         
         maxWays = 25
-        isSorted = False
-        while not isSorted:
-            chunksAmount = maxWays if len(chunks) > maxWays else len(chunks)
-            passOffset = 0
-            chunksGroup = chunks[passOffset:chunksAmount]
+        outBuffer = []
+        while len(allChunks) > 1: # while not fully sorted
+            chunksGroupSize = maxWays if len(allChunks) > maxWays else len(allChunks)
+            allChunksOffset = 0
+            chunksGroup = allChunks[allChunksOffset:chunksGroupSize]
             largeChunk = dict(start=chunksGroup[0]["start"], size=len(data), mergeOffset=0)
             # size of memory for loading part of one chunk
-            memPiece = availMem / (chunksAmount + 1) # 1 for buffer
-            if not memPiece:
+            chunkBufferSize = availMem / (chunksGroupSize + 1) # 1 for buffer
+            if not chunkBufferSize:
                 raise MemoryError("insufficient memory for sorting") # actually we can use less chunks..
             
-            def loadNextPiece(i):
-                '''
-                Loads next piece of chunk into memory and saves current chunk offset.
-                Return false if not more pieces available
-                '''
-                if c["mergeOffset"] >= c["size"]:
-                    return False
-                c = chunksGroup[i]
-                size = c["size"] if memPiece > c["size"] else memPiece
-                self.seek(c["start"] + c["mergeOffset"])
-                c["data"] = self.read(memPiece) # small part of one chunk
-                c["mergeOffset"] += size
-                return True
-                
-            for i in xrange(chunksAmount):
+            # preload first chunk pieces.
+            for i in xrange(chunksGroupSize):
                 loadNextPiece(i) # no checks here since we are sure the data is available
-                largeChunk["size"] += chunksGroup[i]["size"]
+                largeChunk["size"] += chunksGroup[i]["size"] # compute size of future merged chunk
                 
-            sortedFile = self._fileName + ".sorted"
-            if os.path.exists(sortedFile):
-                os.remove(sortedFile)
-            sf = StructuredFile(sortedFile)
-            buffer = []
+            sortedFileName = self._fileName + ".sorted"
+            if os.path.exists(sortedFileName):
+                os.remove(sortedFileName)
+            self._sortedOutFile = StructuredFile(sortedFileName, self._itemSize, self._reader, self._serializer)
             
             while len(chunksGroup):
                 # get chunk from group with smallest key of
@@ -210,25 +224,23 @@ class StructuredSortedFile(StructuredFile):
                     if self._key(chunksGroup[i]["data"][0])<self._key(chunksGroup[smallestIndex]["data"][0]):
                         smallestIndex = i
                 c = chunksGroup[smallestIndex]
-                buffer.append(c["data"].pop(0))
-                
-                # flush buffer
-                if len(buffer) >= memPiece:
-                    sf.write(buffer)
-                    buffer = []
+                bufferedOut(c["data"].pop(0))
                 
                 # load next piece or remove empty chunk if current piece is fully merged
-                if not len(c["data"]):
-                    if not loadNextPiece(smallestIndex):
-                        chunksGroup.pop(smallestIndex)
+                if not len(c["data"]) and not loadNextPiece(smallestIndex):
+                    chunksGroup.pop(smallestIndex)
                         
-            if len(buffer):
-                sf.write(buffer)
-                buffer = []
+            bufferedOut(None) # flush
                         
             # at this moment chunksGroup fully merged into one large chunk
             # we should exchange this chunksGroup with one chunk and merge next group if available
-            chunks[passOffset:passOffset+chunksAmount] = largeChunk
-            passOffset += 1
-            
-            # TODO make checks for next passes
+            allChunks[allChunksOffset:allChunksOffset+chunksGroupSize] = [largeChunk]
+            allChunksOffset += 1
+            if allChunksOffset >= len(allChunks):
+                allChunksOffset = 0
+                del self._sortedOutFile # flush and close
+                self.close()
+                os.remove(self._fileName)
+                os.rename(sortedFileName, self._fileName)
+                self.open()
+                
