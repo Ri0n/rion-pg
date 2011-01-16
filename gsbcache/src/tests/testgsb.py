@@ -23,13 +23,20 @@ class StructuredFileTest(unittest.TestCase):
             os.makedirs(storage, 0755)
         Config.init(os.path.join(storage, "config.ini"))
         Config.instance().set("storage", storage)
+        self.listName = "goog-malware-shavar"
+        
+        base = os.path.join(storage, self.listName)
+        #os.remove(base + ".ini")
+        #os.remove(base + ".chunks")
+        #os.remove(base + ".chunksdata")
+        #os.remove(base + ".hosts")
 
     def runTest(self):
         client = Client()
     
         try:
             #print client.getLists()
-            pprint.pprint(client.downloadList("goog-malware-shavar"))
+            pprint.pprint(client.downloadList(self.listName))
             #client.updateKey()
         finally:    
             Config.instance().save()

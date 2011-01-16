@@ -14,6 +14,8 @@ class NumbersList(list):
         pos:amount records instead of tuples and saving the order like in OrderedDict.
         then it will be possible to use bisect module and get rid of
         most of tuple checking code
+        
+    Be aware that most operations assume _autoGlue = True 
     '''
     _autoGlue = True
     
@@ -111,7 +113,7 @@ class NumbersList(list):
             index, exact = self._bisectLeft(num)
             if not exact:
                 if strict:
-                    raise ValueError("%d is in the list" % num)
+                    raise ValueError("%s not found in the list" % str(num))
                 else:
                     return
             repl = []
@@ -125,6 +127,33 @@ class NumbersList(list):
                 repl = left + right
                 
             self[index:index+1] = repl
+            
+    def intersect(self, numList):
+        result = NumbersList()
+        for num in numList:
+            if isinstance(num, tuple):
+                indexLeft, exactLeft = self._bisectLeft(num[0])
+                indexRight, exactRight = self._bisectLeft(num[1])
+                if indexLeft == indexRight and exactLeft == exactRight:
+                    if exactRight:
+                        result.append(num)
+                    continue
+                if exactLeft:
+                    result.append((num[0], self[indexLeft][1]) if type(self[indexLeft]) == tuple and \
+                                  num[0] < self[indexLeft][1] else num[0])
+                if exactRight:
+                    result.append((self[indexRight][0], num[1]) if type(self[indexRight]) == tuple and \
+                                  self[indexRight][0] < num[1] else num[1])
+                    indexRight -= 1
+                for n in self[indexLeft+1:indexRight+1]:
+                    result.append(n)
+                
+            else:
+                index, exact = self._bisectLeft(num)
+                if exact:
+                    result.append(index)
+        return result
+            
     
     def indexOf(self, num):
         index, exact = self._bisectLeft(num)
@@ -216,7 +245,7 @@ class NumbersList(list):
         return ret
         
     
-    def toString(self):
+    def __str__(self):
         return ",".join([str(c[0]) + "-" + str(c[1]) \
                 if isinstance(c, tuple) else str(c) for c in self])
 

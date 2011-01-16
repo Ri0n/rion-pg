@@ -17,12 +17,14 @@ import io
 import os
 import urlparse
 import urllib2
-from gsb.config import Config
-from gsb.error import MalformedResponseError, MacCheckFailed
 import datetime
 import base64
 import hashlib
 import hmac
+
+from gsb.config import Config
+from gsb.error import MalformedResponseError, MacCheckFailed
+from gsb.extra import NumbersList
 
 class Request(object):
     '''
@@ -152,25 +154,15 @@ class DownloadRequest(NormalRequest):
         self._lists.append((name, aList, sList))
         
     def send(self):
-        def chunksToStr(l):
-            return ",".join([str(c[0]) + "-" + str(c[1]) \
-                      if isinstance(c, tuple) else str(c) for c in l])
-            
-        def chunksFromStr(s):
-            def sc2c(c):
-                l = c.split('-')
-                return int(l[0]), int(l[1]) if len(l) > 1 else int(l[0])
-            return [sc2c(c) for c in s.split(",")]
-            
         body = []
         if self._size:
             body.append("s;" + self._size)
         
         for l in self._lists:
             line = []
-            aLine = chunksToStr(l[1])
+            aLine = str(l[1])
             if aLine: line += ["a", aLine]
-            sLine = chunksToStr(l[2])
+            sLine = str(l[2])
             if sLine: line += ["s", sLine]
             body.append(l[0] + ";" + (":".join(line)))
         
@@ -199,7 +191,7 @@ class DownloadRequest(NormalRequest):
                 break
             key, listName = lines.pop(0).split(":")
             if key == "i":
-                self._responseLists[listName] = {"urls": [], "adddel": [], "subdel": []}
+                self._responseLists[listName] = {"urls": [], "adddel": NumbersList(), "subdel": NumbersList()}
                 while len(lines) and not lines[0].startswith("i:"):
                     l = lines.pop(0)
                     if not l: break # next list
@@ -212,9 +204,9 @@ class DownloadRequest(NormalRequest):
                                 val = ",".join(up)
                         self._responseLists[listName]["urls"].append(val)
                     elif key == "ad":
-                        self._responseLists[listName]["adddel"] = chunksFromStr(val)
+                        self._responseLists[listName]["adddel"] = NumbersList.fromString(val)
                     elif key == "sd":
-                        self._responseLists[listName]["subdel"] = chunksFromStr(val)
+                        self._responseLists[listName]["subdel"] = NumbersList.fromString(val)
         
         return self._responseLists
 

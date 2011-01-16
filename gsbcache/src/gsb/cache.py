@@ -47,7 +47,7 @@ import struct
 
 from gsb.config import ConfigBase, Config
 from gsb.extra import NumbersList
-from gsb.error import UnsupportedListFormat
+from gsb.error import UnsupportedListFormat, AlreadyInList
 from gsb.structuredfile import StructuredSortedFile, SequentialFile
 
 class CacheConfig(ConfigBase):
@@ -55,13 +55,13 @@ class CacheConfig(ConfigBase):
         return NumbersList.fromString(self.get("add-list", ""))
     
     def setAddList(self, l):
-        self.set("add-list", l.toString())
+        self.set("add-list", str(l))
         
     def subList(self):
         return NumbersList.fromString(self.get("sub-list", ""))
     
     def setSubList(self, l):
-        self.set("sub-list", l.toString())
+        self.set("sub-list", str(l))
 
 
 class Cache(object):
@@ -81,18 +81,21 @@ class Cache(object):
         self._addNumbers = self._config.addList()
         self._subNumbers = self._config.subList()
         
+    def __del__(self):
+        self._config.setAddList(self._addNumbers)
+        self._config.setSubList(self._subNumbers)
+        
     def deleteAddChunks(self, chunks):
         for c in chunks:
-            # TODO update add chunks cache (delete chunks)
-            # TODO update black list
             self._addNumbers.remove(c)
-            
     
     def deleteSubChunks(self, chunks):
-        self._subNumbers.remove(chunks)
+        for c in chunks:
+            self._subNumbers.remove(c, False)
         
     def clear(self):
-        pass
+        self._addNumbers[:] = []
+        self._subNumbers[:] = []
     
     def getAddList(self):
         return self._addNumbers
@@ -122,26 +125,26 @@ class ShavarHostRecord(object):
 class ShavarChunkRecord(object):
     '''
     chunkNumber - 32bit
+    dataOffset - 32bit
     hashLen - 8bit
     flags - 8bit(0 - has data, 1 - , 2 - , 3 - , 4 - , 5 - , 6 -, 7 - )
-    dataOffset - 32bit
     '''
     
-    format = "IBBI"
+    format = "=IIBB"
     
     HasDataFlag = 1
     
     def __init__(self, s = ""):
         if s:
-            self.chunkNumber, self.hashLen, self.flags, self.dataOffset = \
+            self.chunkNumber, self.dataOffset, self.hashLen, self.flags = \
                 struct.unpack(self.format, s)
         else:
             self.chunkNumber = self.hashLen = self.dataOffset = None
             self.flags = 0
             
     def toStream(self):
-        return struct.pack(self.format, self.chunkNumber, self.hashLen,
-                           self.prefixesAmount, self.dataOffset)
+        return struct.pack(self.format, self.chunkNumber, self.dataOffset,
+                           self.hashLen, self.flags)
 
 
 class ShavarCache(Cache):
@@ -168,20 +171,30 @@ class ShavarCache(Cache):
             record.flags = ShavarChunkRecord.HasDataFlag if data else 0
             record.dataOffset = offset
             self._chunksTable.write(record)
-            self._chunksTable.sort()
             # TODO update black list
             self._addNumbers.append(c.chunkNumber)
+            
+        self._chunksTable.sort()
                 
     def updateSubChunks(self, chunks):
         from gsb.chunk import ShavarChunk
         addChunks = {}
         for c in chunks:
-            self._subNumbers.append(c.index())
+            try:
+                self._subNumbers.append(c.chunkNumber)
+            except AlreadyInList:
+                continue # that's strange. server sends duplicates?
             for hostKey, prefixes in c.data.iteritems():
+                if type(prefixes) == int:
+                    prefixes = [prefixes]
                 for p in prefixes:
                     addChunkNumber, prefix = p if isinstance(p, tuple) else (p, None)
+                    if self._addNumbers.indexOf(addChunkNumber) == -1:
+                        continue
                     addChunkIndex, exact = self._chunksTable.seekKey(addChunkNumber)
+                    #print ("" if exact else "not ") + "found at: ", addChunkIndex 
                     if not exact:
+                        print "INDEX CORRUPTION DETECTED, RESET REQUIRED.\n%d not found in chunks table" % addChunkNumber
                         continue # add chunk not found. nothing to update
                     
                     chunkRecord = self._chunksTable[addChunkIndex]
@@ -190,15 +203,17 @@ class ShavarCache(Cache):
                     
                     addChunks[addChunkNumber] = addChunks.get(addChunkNumber,
                                                 {"index": addChunkIndex, "record": chunkRecord, "hostKeys": {}})
+                    if hostKey not in addChunks[addChunkNumber]["hostKeys"]:
+                        addChunks[addChunkNumber]["hostKeys"][hostKey] = []
                     addChunks[addChunkNumber]["hostKeys"][hostKey].append(prefix)
             
         removeCandidates = NumbersList()
-        for addChunkNumber, chunkInfo in addChunks:
-            self._chunksData.seek(chunkInfo["record"].offset)
+        for addChunkNumber, chunkInfo in addChunks.iteritems():
+            self._chunksData.seek(chunkInfo["record"].dataOffset)
             chunkData = self._chunksData.read()
             addChunk = ShavarChunk(addChunkNumber, ShavarChunk.TypeAdd,
                                    chunkInfo["record"].hashLen, chunkData.data)
-            for hostKey, prefixes in chunkInfo["hostKeys"]:
+            for hostKey, prefixes in chunkInfo["hostKeys"].iteritems():
                 for prefix in prefixes:
                     addChunk.removePrefix(hostKey, prefix)
 
@@ -217,7 +232,7 @@ class ShavarCache(Cache):
         # TODO update black list
         
     def deleteAddChunks(self, chunks):
-        # TODO get intersection with self._addNumbers first to optimize if google sends smth wrong
+        chunks = self._addNumbers.intersect(chunks)
         removeIndexes = NumbersList()
         for chunkNumber in chunks.iterAll():
             recordIndex, exact = self._chunksTable.seekKey(chunkNumber)
@@ -229,7 +244,10 @@ class ShavarCache(Cache):
             removeIndexes.append(recordIndex)
             # TODO update black list
 
-        self._chunksTable.remove(removeIndexes)        
-        self._addNumbers.remove(chunks)
-
-            
+        self._chunksTable.remove(removeIndexes)
+        Cache.deleteAddChunks(self, chunks)
+        
+    def clear(self):
+        self._chunksTable.truncate()
+        self._chunksData.truncate()
+        Cache.clear(self)

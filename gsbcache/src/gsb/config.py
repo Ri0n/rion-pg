@@ -18,6 +18,7 @@ class ConfigBase(object):
 
     def __init__(self, confFile):
         assert len(confFile)
+        self._confFile = confFile
         self._parser = ConfigParser.ConfigParser(self.defaults)
         self._parser.read(confFile)
     
@@ -50,11 +51,11 @@ class ConfigBase(object):
 class Config(ConfigBase):
     
     defaults = {
-        "new-key-required" : False,
-        "use-mac" : False,
-        "last-errors-amount" : 0,
-        "delayed-until" : 0,
-        "memory-limit" : 100
+        "new-key-required" : "no",
+        "use-mac" : "no",
+        "last-errors-amount" : "0",
+        "delayed-until" : "0",
+        "memory-limit" : "100"
     }
     # memory-limit - Mb
     

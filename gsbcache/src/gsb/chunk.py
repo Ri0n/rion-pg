@@ -36,10 +36,11 @@ class Chunk(object):
 
 class ShavarChunk(Chunk):
     '''
-    `data` member stores hash {hostKey: list<prefix>}
-    in case of sub chunk prefixes item may contain 2 kind of data:
+    `data` member stores hash {hostKey: prefixes}
+    for add chunk prefixes its just plain list of hash prefixes,
+    in case of sub chunk prefixes cab be:
     1) chunk number
-    2) tuple(chunk number, prefix)
+    2) list<tuple(add chunk number, prefix)>
     '''
     def __init__(self, chunkNumber, type, hashLen, data):
         Chunk.__init__(self, chunkNumber, type, hashLen)
@@ -75,6 +76,19 @@ class ShavarChunk(Chunk):
                 
         self.data = hashes
         
+    def removePrefix(self, hostKey, prefix):
+        assert self._type == self.TypeAdd, "unimplemented for sub chunks"
+        try:
+            if prefix == None:
+                del self.data[hostKey]
+                return
+            l = self.data[hostKey]
+            l.remove(prefix)
+            if not l:
+                del self.data[hostKey]
+        except:
+            pass
+        
     def toStream(self):
         '''
         hostKey - 32bit
@@ -87,11 +101,12 @@ class ShavarChunk(Chunk):
             spStart = 0
             while (True):
                 ret += struct.pack("I", hostKey)
-                sub = prefixes[spStart : spStart + 256]
+                sub = prefixes[spStart : spStart + 255]
                 ret += struct.pack("B", len(sub))
                 ret += ("".join(sub))
                 if not sub:
                     break
+                spStart += 255
                 
         return ret
         

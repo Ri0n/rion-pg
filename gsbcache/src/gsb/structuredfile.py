@@ -29,10 +29,12 @@ class Iterator(object):
 
 
 class ManagableFile(object):
+    
+    _memoryLimit = None # no limits
+    
     def __init__(self, filename):
         self._fileName = filename
         self._fp = None
-        self._memoryLimit = None # no limits
         
     def open(self):
         if self._fp:
@@ -58,13 +60,14 @@ class ManagableFile(object):
             
     def __len__(self):
         return self._fileSize
-            
-    def setMemoryLimit(self, limit):
+    
+    @staticmethod
+    def setMemoryLimit(limit):
         '''
         Sets maximum available memory for various memory consumption operations
         like removing/inserting record
         '''
-        self._memoryLimit = limit
+        ManagableFile._memoryLimit = limit
     
     def seek(self, pos):
         self._seekPos = pos
@@ -271,7 +274,7 @@ class StructuredSortedFile(StructuredFile):
         '''
         if len(self) < 2:
             return
-        availMem = self._memoryLimit / self._itemSize #or Config.instance().getint("memory-limit") * 1024 * 1024 # 100 - Mb
+        availMem = self._memoryLimit and self._memoryLimit / self._itemSize #or Config.instance().getint("memory-limit") * 1024 * 1024 # 100 - Mb
         if not availMem or availMem > len(self):
             data = self[0:len(self)]
             if not data:

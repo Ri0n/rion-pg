@@ -7,6 +7,7 @@ Created on 28.12.2010
 import time
 import datetime
 import random
+import base64
 from urllib2 import HTTPError
 
 from gsb.config import Config
@@ -15,15 +16,16 @@ from gsb.request import (
     NewKeyRequest,
     ListRequest,
     DownloadRequest,
-    RedirectRequest
-, Request)
+    RedirectRequest,
+    Request
+)
 from gsb.error import (
     OutOfTriesError,
     MalformedResponseError,
     UnsupportedListFormat
 )
 from gsb.chunk import ShavarChunk, Chunk
-import base64
+from gsb.structuredfile import ManagableFile
 
 class Client(object):
     
@@ -40,6 +42,7 @@ class Client(object):
                 self.updateKey()
             Request.WrappedKey = c.get("wrappedkey")
             Request.ClientKey = base64.urlsafe_b64decode(c.get("clientkey"))
+        ManagableFile.setMemoryLimit(c.getint("memory-limit") * 1024 * 1024)
 
     def isReady(self):
         return datetime.datetime.fromtimestamp(
@@ -136,7 +139,7 @@ class Client(object):
                 cache.deleteAddChunks(props["adddel"])
                 cache.deleteSubChunks(props["subdel"])
             
-            return self.StatusDone, lists
+            return self.StatusDone, None
             
         return self._requestRepeater(do)
             
