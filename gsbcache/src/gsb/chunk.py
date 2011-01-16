@@ -10,27 +10,39 @@ class Chunk(object):
     TypeAdd = 0
     TypeSub = 1
 
-    def __init__(self, index, type):
-        self._index = index
+    def __init__(self, chunkNumber, type, hashLen):
+        self._chunkNumber = chunkNumber
         self._type = type
+        self._hashLen = hashLen
     
-    def index(self):
+    @property
+    def chunkNumber(self):
         '''
         Returns chunk's number
         '''
-        return self._index
+        return self._chunkNumber
     
+    @property
     def type(self):
         '''
         Returns chunk's type (Chunk.TypeAdd or Chunk.TypeSub)
         '''
         return self._type
+    
+    @property
+    def hashLen(self):
+        return self._hashLen
         
 
 class ShavarChunk(Chunk):
-    def __init__(self, index, type, hashLen, data):
-        Chunk.__init__(self, index, type)
-        self.hashLen = hashLen
+    '''
+    `data` member stores hash {hostKey: list<prefix>}
+    in case of sub chunk prefixes item may contain 2 kind of data:
+    1) chunk number
+    2) tuple(chunk number, prefix)
+    '''
+    def __init__(self, chunkNumber, type, hashLen, data):
+        Chunk.__init__(self, chunkNumber, type, hashLen)
         offset = 0
         hashes = {}
         if type == self.TypeAdd:
@@ -62,5 +74,24 @@ class ShavarChunk(Chunk):
                 offset += count * (hashLen + 4)
                 
         self.data = hashes
+        
+    def toStream(self):
+        '''
+        hostKey - 32bit
+        prefixesAmount - 8bit
+        prefixes - prefixesAmount * hashLen bytes
+        '''
+        ret = ""
+        
+        for hostKey, prefixes in self.data.iteritems():
+            spStart = 0
+            while (True):
+                ret += struct.pack("I", hostKey)
+                sub = prefixes[spStart : spStart + 256]
+                ret += struct.pack("B", len(sub))
+                ret += ("".join(sub))
+                if not sub:
+                    break
                 
+        return ret
         

@@ -8,6 +8,7 @@ import struct
 from random import shuffle
 
 from gsb.error import AlreadyOpened, AlreadyClosed
+from gsb.extra import NumbersList
 
 
 class StructuredFileTest(unittest.TestCase):
@@ -16,6 +17,8 @@ class StructuredFileTest(unittest.TestCase):
     def setUp(self):
         from gsb.structuredfile import StructuredFile
         self.sfile = StructuredFile("gg.txt", 4, lambda s: struct.unpack("I", s)[0], lambda i: struct.pack("I", i))
+        self.sfile.truncate()
+        self.sfile.seek(0)
 
     def test_open_close(self):
         self.assertRaises(AlreadyOpened, self.sfile.open)
@@ -26,7 +29,6 @@ class StructuredFileTest(unittest.TestCase):
 
 
     def test_read_write(self):
-        self.sfile.truncate()
         self.assertEqual(self.sfile._fileSize, 0)
         self.assertEqual(len(self.sfile), 0)
         self.sfile.write(12345) # + 1 record (4 bytes)
@@ -45,6 +47,26 @@ class StructuredFileTest(unittest.TestCase):
         self.assertEqual(len(self.sfile), 6)
         self.assertEqual(self.sfile[0:6:5], [12345, 13579])
         
+    def test_remove_records(self):
+        self.sfile.write(range(0, 100))
+        self.assertEqual(len(self.sfile), 100)
+        self.assertEqual(self.sfile[0:100], range(100))
+        self.sfile.remove(50)
+        testRange = range(0, 100)
+        testRange.pop(50)
+        self.assertEqual(self.sfile[0:len(self.sfile)], testRange)
+        
+        self.sfile.truncate()
+        self.sfile.seek(0)
+        self.sfile.write(range(0, 20))
+        removeIndexes = NumbersList()
+        removeIndexes.append((0,5))
+        removeIndexes.append(8)
+        removeIndexes.append(12)
+        removeIndexes.append((15,30))
+        self.sfile.remove(removeIndexes)
+        self.assertEqual(self.sfile[0:len(self.sfile)], [6,7,9,10,11,13,14])
+        
         
 class StructuredSortedFileTest(unittest.TestCase):
     def setUp(self):
@@ -53,6 +75,7 @@ class StructuredSortedFileTest(unittest.TestCase):
                                           lambda i: struct.pack("I", i),
                                           lambda item: item)
         self.sfile.truncate()
+        self.sfile.seek(0)
         
     def test_sort(self):
         start = 105
@@ -60,7 +83,8 @@ class StructuredSortedFileTest(unittest.TestCase):
         numbers = range(start, finish)
         shuffle(numbers)
         self.sfile.write(numbers)
-        self.sfile.sort(2000)
+        self.sfile.setMemoryLimit(2000)
+        self.sfile.sort()
         self.maxDiff = None
         self.assertEqual(self.sfile[0:finish - start], range(start, finish))
         

@@ -189,6 +189,11 @@ class DownloadRequest(NormalRequest):
                     if not l: break # next list
                     key, val = l.split(":")
                     if key == "u":
+                        if self._useMac:
+                            up = val.split(",")
+                            if len(up) > 1:
+                                self.validateMac(up.pop(), data) # TODO most likely this is for redirect request, not for this one
+                                val = ",".join(up)
                         self._responseLists[listName]["urls"].append(val)
                     elif key == "ad":
                         self._responseLists[listName]["adddel"] = chunksFromStr(val)
@@ -224,8 +229,8 @@ class RedirectRequest(Request):
             cLen = int(cLen)
             chunk = fp.read(cLen) if cLen else ""
             print "chunk data: ", chunk.encode("hex")
-            chunks.append({"type": cType, "index": int(cNum),
-                           "hash_len": int(hashLen), "data": chunk})
+            chunks.append({"type": cType, "cn": int(cNum),
+                           "hl": int(hashLen), "data": chunk})
         print "parsed: " + self.url()
         return chunks
             

@@ -29,21 +29,26 @@ listname.hashes(sequential access):
 hashesAmount = 16bit
 hashes = prAmount * 9 bytes (hash - 8 bytes, current size - 1 byte)
 
-listname.chunks (random access):
+listname.chunks ("add" chunks, random access):
 chunkNumber - 32bit
 hashLen - 8bit
-prefixesAmount - 16bit
+flags - 8bit(0 - has data, 1 - , 2 - , 3 - , 4 - , 5 - , 6 -, 7 - )
 dataOffset - 32bit
 
 listname.chunksdata(sequential access):
+hostKey - 32bit
+prefixesAmount - 16bit
 prefixes - prefixesAmount * hashLen bytes
 
 '''
 
 import os
+import struct
 
 from gsb.config import ConfigBase, Config
 from gsb.extra import NumbersList
+from gsb.error import UnsupportedListFormat
+from gsb.structuredfile import StructuredSortedFile, SequentialFile
 
 class CacheConfig(ConfigBase):
     def addList(self):
@@ -60,9 +65,19 @@ class CacheConfig(ConfigBase):
 
 
 class Cache(object):
+    
+    @staticmethod
+    def factory(listName):
+        nameParts = listName.split("-")
+        if nameParts[2] == "shavar":
+            return ShavarCache(listName)
+        raise UnsupportedListFormat(nameParts[2] + "is not supported")
+    
+    
     def __init__(self, listName):
         self._listName = listName
-        self._config = CacheConfig(os.path.join(Config.instance().get("storage"), listName + ".ini"))
+        self._listPathBase = os.path.join(Config.instance().get("storage"), listName)
+        self._config = CacheConfig(self._listPathBase + ".ini")
         self._addNumbers = self._config.addList()
         self._subNumbers = self._config.subList()
         
@@ -97,4 +112,120 @@ class Cache(object):
     
     def getSubList(self):
         return self._subNumbers
+
+
+
+class ShavarHostRecord(object):
+    '''
+    hostkey - 32 bit
+    hashesOffset = 32bit (-1 for no prefixes)
+    '''
     
+    format = "Ii"
+    
+    def __init__(self, s = ""):
+        if s:
+            self.hostKey, self.hashesOffset = struct.unpack(self.format, s)
+        else:
+            self.hostKey, self.hashesOffset = (None, None)
+            
+    def toStream(self):
+        return struct.pack(self.format, self.hostKey, self.hashesOffset)
+
+class ShavarChunkRecord(object):
+    '''
+    chunkNumber - 32bit
+    hashLen - 8bit
+    flags - 8bit(0 - has data, 1 - , 2 - , 3 - , 4 - , 5 - , 6 -, 7 - )
+    dataOffset - 32bit
+    '''
+    
+    format = "IBBI"
+    
+    HasDataFlag = 1
+    
+    def __init__(self, s = ""):
+        if s:
+            self.chunkNumber, self.hashLen, self.flags, self.dataOffset = \
+                struct.unpack(self.format, s)
+        else:
+            self.chunkNumber = self.hashLen = self.dataOffset = None
+            self.flags = 0
+            
+    def toStream(self):
+        return struct.pack(self.format, self.chunkNumber, self.hashLen,
+                           self.prefixesAmount, self.dataOffset)
+
+
+class ShavarCache(Cache):
+    def __init__(self, listName):
+        super(ShavarCache, self).__init__(listName)
+        self._hostsTable = StructuredSortedFile(self._listPathBas + ".hosts",
+                                                lambda s: ShavarHostRecord(s),
+                                                lambda i: i.toStream(),
+                                                lambda r: r.hostKey)
+        self._chunksTable = StructuredSortedFile(self._listPathBas + ".chunks",
+                                                lambda s: ShavarChunkRecord(s),
+                                                lambda i: i.toStream(),
+                                                lambda r: r.chunkNumber)
+        self._chunksData = SequentialFile(self._listPathBas + ".chunksdata")
+        
+    def updateAddChunks(self, chunks):
+        self._chunksTable.seek(len(self._chunksTable))
+        for c in chunks:
+            data = c.toStream()
+            offset = self._chunksData.write(data) if data else 0
+            record = ShavarChunkRecord()
+            record.chunkNumber = c.chunkNumber
+            record.hashLen = c.hashLen
+            record.flags = ShavarChunkRecord.HasDataFlag if data else 0
+            record.dataOffset = offset
+            self._chunksTable.write(record)
+            self._chunksTable.sort()
+            # TODO update black list
+            self._addNumbers.append(c.chunkNumber)
+                
+    def updateSubChunks(self, chunks):
+        from gsb.chunk import ShavarChunk
+        addChunks = {}
+        for c in chunks:
+            self._subNumbers.append(c.index())
+            for hostKey, prefixes in c.data.iteritems():
+                for p in prefixes:
+                    addChunkNumber, prefix = p if isinstance(p, tuple) else (p, None)
+                    addChunkIndex, exact = self._chunksTable.seekKey(addChunkNumber)
+                    if not exact:
+                        continue
+                    
+                    chunkRecord = self._chunksTable[addChunkIndex]
+                    if not chunkRecord.flags & ShavarChunkRecord.HasDataFlag: # nothing to update
+                        continue
+                    
+                    addChunks[addChunkNumber] = addChunks.get(addChunkNumber,
+                                                {"index": addChunkIndex, "record": chunkRecord, "hostKeys": {}})
+                    addChunks[addChunkNumber]["hostKeys"][hostKey].append(prefix)
+            
+        removeCandidates = NumbersList()
+        for addChunkNumber, chunkInfo in addChunks:
+            self._chunksData.seek(chunkInfo["record"].offset)
+            chunkData = self._chunksData.read()
+            addChunk = ShavarChunk(addChunkNumber, ShavarChunk.TypeAdd,
+                                   chunkInfo["record"].hashLen, chunkData.data)
+            for hostKey, prefixes in chunkInfo["hostKeys"]:
+                for prefix in prefixes:
+                    addChunk.removePrefix(hostKey, prefix)
+
+            if not addChunk.data:
+                chunkInfo["record"].flags & ~ShavarChunkRecord.HasDataFlag # not necessary actually because of remove below
+                self._chunksTable[chunkInfo["index"]]
+                chunkData.markInvalid()
+                removeCandidates.append(addChunkNumber)
+            else:
+                chunkData.data = addChunk.toStream()
+                chunkData.save()
+                
+        if removeCandidates:
+            self._chunksTable.remove(removeCandidates) # probably not a good idea until adddel..
+                
+        # TODO update black list
+            

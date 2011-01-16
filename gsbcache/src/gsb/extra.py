@@ -7,7 +7,14 @@ Created on 12.01.2011
 from gsb.error import AlreadyInList
 
 class NumbersList(list):
+    '''
+    this class allows to manage runs of integers with minimal memory usage
     
+    TODO: review a way or rewriting as dict subclass using
+        pos:amount records instead of tuples and saving the order like in OrderedDict.
+        then it will be possible to use bisect module and get rid of
+        most of tuple checking code
+    '''
     _autoGlue = True
     
     def append(self, num, strict = True):
@@ -125,7 +132,7 @@ class NumbersList(list):
         
     def _bisectLeft(self, num):
         if not self: # len = 0
-            return 0, False
+            return -1, False
         start = 0
         end = len(self)
         while start != end:

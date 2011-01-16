@@ -86,7 +86,7 @@ class Client(object):
     
     def getCache(self, listName):
         if listName not in self._lists:
-            self._lists[listName] = Cache(listName)
+            self._lists[listName] = Cache.factory(listName)
         return self._lists[listName]
        
     def getLists(self):
@@ -113,21 +113,26 @@ class Client(object):
                 if nameParts[2] != "shavar":
                     raise UnsupportedListFormat(nameParts[2] + "is not supported")
                     
-                props["chunks"] = []
+                props["addChunks"] = []
+                props["subChunks"] = []
                 for url in props["urls"]:
                     rReq = RedirectRequest(url)
                     # on embed devices its better to save request result
                     # into some temporary file
                     chunks = rReq.send()
                     for c in chunks:
-                        props["chunks"].append(ShavarChunk(c["index"],
-                            Chunk.TypeAdd if c["type"] == 'a' else Chunk.TypeSub,
-                            c["hash_len"], c["data"]))
+                        if c["type"] == 'a':
+                            props["addChunks"].append(ShavarChunk(c["cn"], Chunk.TypeAdd,
+                                                                  c["hl"], c["data"]))
+                        else:
+                            props["subChunks"].append(ShavarChunk(c["cn"],Chunk.TypeSub,
+                                                                  c["hl"], c["data"]))
             
             # data is fully parsed now, lets put it into cache
             for listName, props in lists.iteritems():
                 cache = self.getCache(listName)
-                cache.updateChunks(props["chunks"])
+                cache.updateAddChunks(props["addChunks"])
+                cache.updateSubChunks(props["subChunks"])
                 cache.deleteAddChunks(props["adddel"])
                 cache.deleteSubChunks(props["subdel"])
             
