@@ -56,6 +56,9 @@ class ManagableFile(object):
         if self._fp:
             self.close()
             
+    def __len__(self):
+        return self._fileSize
+            
     def setMemoryLimit(self, limit):
         '''
         Sets maximum available memory for various memory consumption operations
@@ -63,7 +66,11 @@ class ManagableFile(object):
         '''
         self._memoryLimit = limit
     
-    def read(self, size = -1):
+    def seek(self, pos):
+        self._seekPos = pos
+        self._fp.seek(pos)
+    
+    def read(self, size= -1):
         return self._fp.read(size)
     
     def write(self, data):
@@ -72,24 +79,30 @@ class ManagableFile(object):
         if pos > self._fileSize:
             self._fileSize = pos
             
-    def _movePart(self, fromPos, toPos, size = None):
+    def truncate(self, size=0):
+        if size > self._fileSize:
+            raise IOError("can't truncate to bigger size")
+        self._fileSize = size
+        self._fp.truncate(self._fileSize)
+            
+    def _movePart(self, fromPos, toPos, size=None):
         assert fromPos != toPos
         maxPageSize = self._memoryLimit or 50 * 1024 * 1024
         size = size or self._fileSize - fromPos
         if fromPos < toPos: # move right
             while size:
                 btr = maxPageSize if maxPageSize < size else size # bytes to read
-                self.seek(fromPos + size - btr)
-                data = ManagableFile.read(self, btr * self._itemSize)
-                self.seek(toPos + size - btr)
+                ManagableFile.seek(self, fromPos + size - btr)
+                data = ManagableFile.read(self, btr)
+                ManagableFile.seek(self, toPos + size - btr)
                 ManagableFile.write(self, data)
                 size -= btr
         else: # move left
             while size:
                 btr = maxPageSize if maxPageSize < size else size # bytes to read
-                self.seek(fromPos)
-                data = ManagableFile.read(self, btr * self._itemSize)
-                self.seek(toPos)
+                ManagableFile.seek(self, fromPos)
+                data = ManagableFile.read(self, btr)
+                ManagableFile.seek(self, toPos)
                 ManagableFile.write(self, data)
                 fromPos += btr
                 toPos += btr
@@ -113,16 +126,14 @@ class StructuredFile(ManagableFile):
     def __len__(self):
         return self._fileSize / self._itemSize
         
-    def truncate(self, n = 0):
-        # TODO make checks for big n
-        self._fileSize = n * self._itemSize
-        self._fp.truncate(self._fileSize)
+    def truncate(self, n=0):
+        super(StructuredFile, self).truncate(n * self._itemSize)
         
     def seek(self, n):
         self._seekPos = n * self._itemSize
         self._fp.seek(n * self._itemSize)
         
-    def read(self, n = 1):
+    def read(self, n=1):
         data = super(StructuredFile, self).read(self._itemSize * n)
         ret = []
         for i in xrange(n):
@@ -156,7 +167,7 @@ class StructuredFile(ManagableFile):
     def __iter__(self):
         return Iterator(self)
     
-    def insert(self, index, data, buffered = True):
+    def insert(self, index, data, buffered=True):
         pass # TODO implement =)
     
     def remove(self, index):
@@ -187,13 +198,13 @@ class StructuredFile(ManagableFile):
             
             self.truncate(savePoint)
         else:
-            self._movePart(index+1, index)
+            self._movePart(index + 1, index)
             self.truncate(len(self) - 1)
             
-    def _movePart(self, fromPos, toPos, size = None):
+    def _movePart(self, fromPos, toPos, size=None):
         assert fromPos != toPos
         ManagableFile._movePart(self, fromPos * self._itemSize, toPos * self._itemSize,
-                                size and size  * self._itemSize)
+                                size and size * self._itemSize)
             
 
 class StructuredSortedFile(StructuredFile):
@@ -229,14 +240,14 @@ class StructuredSortedFile(StructuredFile):
         exact flag will be false.
         '''
         if not len(self):
-            return -1, False
+            return - 1, False
         
         # TODO optimize by preloading more data when jump step starts to fit in memoryLimit
         
         start = 0
         end = len(self)
         while start != end:
-            mid = int((start + end)/2)
+            mid = int((start + end) / 2)
             if key < self._key(self[mid]):
                 if mid == end:
                     return mid, False
@@ -250,7 +261,7 @@ class StructuredSortedFile(StructuredFile):
             return mid, True
         
         if start == end == 0:
-            return -1, False
+            return - 1, False
         return start, False
         
     
@@ -265,7 +276,7 @@ class StructuredSortedFile(StructuredFile):
             data = self[0:len(self)]
             if not data:
                 return
-            data.sort(key = self._key)
+            data.sort(key=self._key)
             self.seek(0)
             self.write(data)
             return
@@ -282,7 +293,7 @@ class StructuredSortedFile(StructuredFile):
             data = self.read(availMem)
             if not data:
                 break
-            data.sort(key = self._key)
+            data.sort(key=self._key)
             self.seek(i * availMem)
             self.write(data)
             allChunks.append(dict(start=i * availMem, size=len(data), mergeOffset=0))
@@ -310,7 +321,7 @@ class StructuredSortedFile(StructuredFile):
             c["mergeOffset"] += size
             return True
         
-        def bufferedOut(r = None):
+        def bufferedOut(r=None):
             '''
             Puts record into buffer and flashes it bound is reached.
             if `r` == None only buffer will be flashed unconditionally 
@@ -348,7 +359,7 @@ class StructuredSortedFile(StructuredFile):
                 # get chunk from group with smallest key of
                 smallestIndex = 0
                 for i in xrange(1, len(chunksGroup)):
-                    if self._key(chunksGroup[i]["data"][0])<self._key(chunksGroup[smallestIndex]["data"][0]):
+                    if self._key(chunksGroup[i]["data"][0]) < self._key(chunksGroup[smallestIndex]["data"][0]):
                         smallestIndex = i
                 c = chunksGroup[smallestIndex]
                 bufferedOut(c["data"].pop(0))
@@ -361,7 +372,7 @@ class StructuredSortedFile(StructuredFile):
                         
             # at this moment chunksGroup fully merged into one large chunk
             # we should exchange this chunksGroup with one chunk and merge next group if available
-            allChunks[allChunksOffset:allChunksOffset+chunksGroupSize] = [largeChunk]
+            allChunks[allChunksOffset:allChunksOffset + chunksGroupSize] = [largeChunk]
             allChunksOffset += 1
             if allChunksOffset >= len(allChunks):
                 allChunksOffset = 0
@@ -389,7 +400,7 @@ class SequentialBlock(object):
         return self._offset
     
     def save(self):
-        self._file.write(self)
+        return self._file.write(self)
 
 class SequentialFile(ManagableFile):
     '''
@@ -419,17 +430,25 @@ class SequentialFile(ManagableFile):
             1 bytes - uchar 49 - data
     '''
     
+    def __init__(self, filename):
+        ManagableFile.__init__(self, filename)
+        self.open()
+    
+    def readFrom(self, pos):
+        self.seek(pos)
+        return self.read()
+    
     def read(self):
         '''
         reads file block from current position
         '''
         offset = self._fp.tell()
-        sizeSata = ManagableFile.read(self, 8)
-        if sizeSata:
-            blockSize, dataSize = struct.unpack("II", sizeSata)
+        sizeRaw = ManagableFile.read(self, 8)
+        if sizeRaw:
+            blockSize, dataSize = struct.unpack("II", sizeRaw)
             if self._memoryLimit and dataSize > self._memoryLimit:
                 raise MemoryError("block size too large")
-            data = ManagableFile.read(self, sizeSata)
+            data = ManagableFile.read(self, dataSize)
             if len(data) != dataSize:
                 raise IOError("block truncated")
             return SequentialBlock(self, offset, blockSize, data)
@@ -440,25 +459,62 @@ class SequentialFile(ManagableFile):
                 self.markInvalid(data.offset)
                 return self.write(data.data) # create new block
             else:
-                self._fp.seek(data.offset + 4)
-                self._fp.write(struct.pack("I", len(data.data)))
-                self._fp.write(data.data)
+                ManagableFile.seek(self, data.offset + 4)
+                ManagableFile.write(self, struct.pack("I", len(data.data)))
+                ManagableFile.write(self, data.data)
                 return data.offset
         else:
-            self._fp.seek(self._fileSize)
+            ManagableFile.seek(self, self._fileSize)
             dataOffset = self._fileSize
-            self._fp.write(struct.pack("II", len(data), len(data)))
-            self._fp.write(data)
+            ManagableFile.write(self, struct.pack("II", len(data), len(data)))
+            ManagableFile.write(self, data)
             return dataOffset
 
     def markInvalid(self, offset):
         '''
         sets data size to 0, that means invalid block 
         '''
-        self._fp.seek(offset + 4)
-        self._fp.write('\x00' * 4) # mark block as empty / invalid
-        #TODO truncate file if last block
+        ManagableFile.seek(self, offset)
+        blockSize = struct.unpack("I", ManagableFile.read(self, 4))[0]
+        if offset + blockSize + 8 >= self._fileSize: # if its last block. 8 - size of block header
+            self.truncate(offset)
+        else:
+            ManagableFile.write(self, '\x00' * 4) # mark block as empty / invalid
         
     def vacuum(self):
-        # TODO implement
-        pass
+        '''
+        remove holes with invalid data from file
+        '''
+        readPos = 0
+        size = 0
+        while (readPos < self._fileSize):
+            if readPos >= self._fileSize:
+                break
+            
+            holePos = readPos
+            while (readPos < self._fileSize): # skip hole
+                ManagableFile.seek(self, readPos)
+                sizeSata = ManagableFile.read(self, 8)
+                blockSize, dataSize = struct.unpack("II", sizeSata)
+                if dataSize:
+                    break
+                readPos += (blockSize + 8)
+            if readPos >= self._fileSize:
+                size = holePos
+                break
+            
+            runPos = readPos
+            while (readPos < self._fileSize): # get valid run
+                ManagableFile.seek(self, readPos)
+                sizeSata = ManagableFile.read(self, 8)
+                blockSize, dataSize = struct.unpack("II", sizeSata)
+                if not dataSize:
+                    break
+                readPos += (blockSize + 8)
+
+            if runPos > holePos:
+                self._movePart(runPos, holePos, readPos - runPos)
+                size = holePos + (readPos - runPos)
+        
+        if size != self._fileSize:
+            self.truncate(size)

@@ -13,6 +13,8 @@ programmer as well as from the program, so lets consider it's
 ok w/o additional manipulations =)  
 '''
 
+import io
+import os
 import urlparse
 import urllib2
 from gsb.config import Config
@@ -38,6 +40,8 @@ class Request(object):
     WrappedKey = None
     ClientKey = None
     
+    cacheData = False # just for debug atm
+    
     def __init__(self, url):
         standardParams = self._standardParams()
         if standardParams:
@@ -50,9 +54,21 @@ class Request(object):
             
     def send(self, body=""):
         print("send: %s" % body)
-        self._httpreq.add_data(body)
-        f = urllib2.urlopen(self._httpreq)
-        data = f.read()
+        f = None
+        if self.cacheData:
+            fname = os.path.join(Config.instance().get("storage"),
+                                 hashlib.sha1(self.url() + (body and body or "")).digest().encode("hex"))
+            if os.path.exists(fname):
+                f = io.FileIO(fname)
+                data = f.read()
+        if not f:
+            self._httpreq.add_data(body)
+            f = urllib2.urlopen(self._httpreq)
+            data = f.read()
+            if self.cacheData:
+                f = io.FileIO(fname, "w")
+                f.write(data)
+            
         print("read: %s" % data)
         return data
 
@@ -211,6 +227,7 @@ class DownloadRequest(NormalRequest):
 
 
 class RedirectRequest(Request):
+    
     def __init__(self, url):
         Request.__init__(self, "http://" + url)
         
@@ -218,8 +235,9 @@ class RedirectRequest(Request):
         return ""
         
     def send(self):
-        print "requesting: " + self.url()
-        fp = urllib2.urlopen(self._httpreq)
+        fp = io.BytesIO()
+        fp.write(Request.send(self, None))
+        fp.seek(0)
         chunks = []
         while (True):
             l = fp.readline()

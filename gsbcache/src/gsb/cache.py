@@ -81,18 +81,6 @@ class Cache(object):
         self._addNumbers = self._config.addList()
         self._subNumbers = self._config.subList()
         
-    def updateChunks(self, chunks):
-        from gsb.chunk import Chunk
-        for c in chunks:
-            if c.type() == Chunk.TypeAdd:
-                # TODO update add chunks cache (add new chunks)
-                # TODO update black list
-                self._addNumbers.append(c.index())
-            else: # sub
-                # TODO update add chunks cache (change existing chunks)
-                # TODO update black list
-                self._subNumbers.append(c.index())
-        
     def deleteAddChunks(self, chunks):
         for c in chunks:
             # TODO update add chunks cache (delete chunks)
@@ -101,8 +89,7 @@ class Cache(object):
             
     
     def deleteSubChunks(self, chunks):
-        for c in chunks:
-            self._subNumbers.remove(c)
+        self._subNumbers.remove(chunks)
         
     def clear(self):
         pass
@@ -160,15 +147,15 @@ class ShavarChunkRecord(object):
 class ShavarCache(Cache):
     def __init__(self, listName):
         super(ShavarCache, self).__init__(listName)
-        self._hostsTable = StructuredSortedFile(self._listPathBas + ".hosts",
+        self._hostsTable = StructuredSortedFile(self._listPathBase + ".hosts", 8,
                                                 lambda s: ShavarHostRecord(s),
                                                 lambda i: i.toStream(),
                                                 lambda r: r.hostKey)
-        self._chunksTable = StructuredSortedFile(self._listPathBas + ".chunks",
+        self._chunksTable = StructuredSortedFile(self._listPathBase + ".chunks", 10,
                                                 lambda s: ShavarChunkRecord(s),
                                                 lambda i: i.toStream(),
                                                 lambda r: r.chunkNumber)
-        self._chunksData = SequentialFile(self._listPathBas + ".chunksdata")
+        self._chunksData = SequentialFile(self._listPathBase + ".chunksdata")
         
     def updateAddChunks(self, chunks):
         self._chunksTable.seek(len(self._chunksTable))
@@ -195,11 +182,11 @@ class ShavarCache(Cache):
                     addChunkNumber, prefix = p if isinstance(p, tuple) else (p, None)
                     addChunkIndex, exact = self._chunksTable.seekKey(addChunkNumber)
                     if not exact:
-                        continue
+                        continue # add chunk not found. nothing to update
                     
                     chunkRecord = self._chunksTable[addChunkIndex]
-                    if not chunkRecord.flags & ShavarChunkRecord.HasDataFlag: # nothing to update
-                        continue
+                    if not chunkRecord.flags & ShavarChunkRecord.HasDataFlag:
+                        continue # add chunk is empty. nothing to update
                     
                     addChunks[addChunkNumber] = addChunks.get(addChunkNumber,
                                                 {"index": addChunkIndex, "record": chunkRecord, "hostKeys": {}})
@@ -228,4 +215,21 @@ class ShavarCache(Cache):
             self._chunksTable.remove(removeCandidates) # probably not a good idea until adddel..
                 
         # TODO update black list
+        
+    def deleteAddChunks(self, chunks):
+        # TODO get intersection with self._addNumbers first to optimize if google sends smth wrong
+        removeIndexes = NumbersList()
+        for chunkNumber in chunks.iterAll():
+            recordIndex, exact = self._chunksTable.seekKey(chunkNumber)
+            record = self._chunksTable[recordIndex]
+            if not exact:
+                continue
+            self._chunksData.markInvalid(record.offset)
+            # TODO call vacuum and invalidate data offsets
+            removeIndexes.append(recordIndex)
+            # TODO update black list
+
+        self._chunksTable.remove(removeIndexes)        
+        self._addNumbers.remove(chunks)
+
             
