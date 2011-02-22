@@ -18,6 +18,11 @@ MainWindow::MainWindow(QWidget *parent) :
         tidyLoc = linuxTidy;
         ui->tidyLe->setText(linuxTidy);
     }
+	const char *linuxQHelpgen = "/usr/bin/qhelpgenerator";
+	if (QFileInfo(linuxQHelpgen).exists()) {
+		helpgenLoc = linuxQHelpgen;
+		ui->helpgenLe->setText(linuxQHelpgen);
+	}
 #endif
 }
 
@@ -71,6 +76,16 @@ void MainWindow::on_tidyBtn_clicked()
     }
 }
 
+void MainWindow::on_helpgenBtn_clicked()
+{
+	QString fileName = QFileDialog::getOpenFileName(this, tr("Choose qhelpgenerator executable"),
+								 QDir::homePath());
+	if (!fileName.isNull() && QFileInfo(fileName).exists()) {
+		helpgenLoc = fileName;
+		ui->helpgenLe->setText(fileName);
+	}
+}
+
 void MainWindow::on_generateBtn_clicked()
 {
     if (!QFileInfo(indexLoc).exists() or !QFileInfo(tidyLoc).exists()) {
@@ -85,6 +100,24 @@ void MainWindow::on_generateBtn_clicked()
     if (!indexDoc.setContent(indexStr)) {
         return;
     }
+
+	// prepare temporary directory
+	QString tempDir = QFileInfo(indexLoc).absolutePath() + "/temp";
+	if (QFileInfo(tempDir).exists()) {
+		foreach (const QFileInfo &entry, QDir(tempDir).entryInfoList(QDir::Files)) {
+			if (!QFile::remove(entry.filePath())) {
+				QMessageBox::warning(this, "Error", "Failed to remove files from temporary dir " + tempDir);
+				return;
+			}
+		}
+	}
+	else {
+		if (!QDir(QFileInfo(indexLoc).absolutePath()).mkdir("temp")) {
+			QMessageBox::warning(this, "Error", "Failed to create temporary dir " + tempDir);
+			return;
+		}
+	}
+
     QDomNodeList divList = indexDoc.elementsByTagName("div");
     QDomElement rootUl;
     for (unsigned int i = 0; i < divList.length(); i++) {
@@ -153,17 +186,60 @@ void MainWindow::on_generateBtn_clicked()
         keywordEl.setAttribute("ref", keywords.value(title));
     }
 
-    filter.appendChild(out.createElement("files")).appendChild(out.createElement("file")).appendChild(out.createTextNode("*.html"));
+	QDomElement filesEl = filter.appendChild(out.createElement("files")).toElement();
+	filesEl.appendChild(out.createElement("file")).appendChild(out.createTextNode("*.html"));
+	filesEl.appendChild(out.createElement("file")).appendChild(out.createTextNode("main.css"));
 
-    QString qhpFileName = QFileInfo(indexLoc).absolutePath() + "/index.qhp";
+	QString qhpFileName = tempDir + "/index.qhp";
     QFile qhpFile(qhpFileName);
-    if (qhpFile.open(QIODevice::WriteOnly)) {
-        qhpFile.write(out.toString().toUtf8());
-        qhpFile.close();
-        QMessageBox::information(this, "File Saved", qhpFileName);
-    } else {
-        qDebug("Failed to open %s for write", qPrintable(qhpFileName));
-    }
+	if (!qhpFile.open(QIODevice::WriteOnly)) {
+		qDebug("Failed to open %s for write", qPrintable(qhpFileName));
+		return;
+	}
+	qhpFile.write(out.toString().toUtf8());
+	qhpFile.close();
+	if (helpgenLoc.isEmpty()) {
+		QMessageBox::information(this, "Qt help project saved.", qhpFileName +
+								 "\n\nYou can manually start qhelpgenerator to convert it into qch file");
+		return;
+	}
+
+	// insert styles into each html file
+	QFile css(tempDir + "/main.css");
+	css.open(QIODevice::WriteOnly);
+	css.write("html, body { background-color:#ffffff; color:#000000; }");
+	css.close();
+	foreach (const QFileInfo &entry, QDir(QFileInfo(indexLoc).absolutePath()).entryInfoList(QDir::Files)) {
+		if (entry.suffix() != "html") {
+			QFile(entry.filePath()).copy(tempDir + "/" + entry.fileName());
+			continue;
+		}
+		QFile f(entry.filePath());
+		f.open(QIODevice::ReadOnly);
+		QString content = QString::fromAscii(f.readAll());
+		f.close();
+		int pos = content.indexOf("<head>", 0, Qt::CaseInsensitive);
+		if (pos != -1) {
+			content.insert(pos + 6, "\n<link type=\"text/css\" rel=\"stylesheet\" href=\"main.css\">\n");
+		}
+		QFile of(tempDir + "/" + entry.fileName());
+		of.open(QIODevice::WriteOnly);
+		of.write(content.toUtf8());
+		of.close();
+	}
+
+	QString qchFileName = tempDir + "/glibc.qch";
+	QProcess p;
+	p.start(helpgenLoc, QStringList() << qhpFileName << "-o" << qchFileName);
+	if (!p.waitForFinished()) {
+		QMessageBox::warning(this, "Generation failed", "Failed to generate qch file. The process didn't finish shortly");
+		return;
+	}
+	if (!QFileInfo(qchFileName).exists()) {
+		QMessageBox::warning(this, "Generation failed", "Failed to generate qch file.\n" + QString::fromLocal8Bit(p.readAll()));
+		return;
+	}
+	QMessageBox::information(this, "Qt help generated and saved", qchFileName);
 }
 
 void MainWindow::recursiveSectionAdd(const QDomElement &source, QDomElement &destination, QHash<QString, QString> &keywords)

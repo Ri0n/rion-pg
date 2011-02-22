@@ -24,11 +24,13 @@ private slots:
     void on_indexBtn_clicked();
     void on_generateBtn_clicked();
     void on_tidyBtn_clicked();
+	void on_helpgenBtn_clicked();
 
 private:
     Ui::MainWindow *ui;
     QString indexLoc;
     QString tidyLoc;
+	QString helpgenLoc;
 };
 
 #endif // MAINWINDOW_H
