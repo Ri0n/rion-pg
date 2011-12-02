@@ -7,6 +7,8 @@ namespace Ui {
     class MainWindow;
 }
 
+class AppUpdater;
+
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -20,9 +22,11 @@ protected:
 
 private slots:
 	void on_pbCheckUpdates_clicked();
+	void checkFinished();
 
 private:
     Ui::MainWindow *ui;
+	AppUpdater *updater;
 };
 
 #endif // MAINWINDOW_H
