@@ -56,7 +56,7 @@ public:
 		setLayout(layout);
 
 		connect(updater, SIGNAL(fileNameChanged()), SLOT(updateDownloadFilename()));
-		connect(updater, SIGNAL(downloadFailed()), SLOT(showDownloadError()));
+		connect(updater, SIGNAL(finished()), SLOT(showDownloadError())); // if any
 		connect(updater, SIGNAL(downloadStarted(QNetworkReply*)), SLOT(downloadStarted(QNetworkReply*)));
 		connect(pbDownload, SIGNAL(clicked()), SLOT(download()));
 		connect(pbHide, SIGNAL(clicked()), SLOT(close()));
@@ -90,7 +90,8 @@ private slots:
 
 	void downloadProgress(qint64 bytesReceived, qint64 bytesTotal)
 	{
-		int percent = float(bytesReceived) / float(bytesTotal) * 100.0;
+		int percent = bytesTotal? float(bytesReceived) /
+								  float(bytesTotal) * 100.0 : 100;
 		pbarDownload->setValue(percent);
 		if (percent == 100) {
 			hide();
@@ -105,7 +106,9 @@ private slots:
 
 	void showDownloadError()
 	{
-		lblDescr->setText("<b style=\"color:red\">" + updater->error() + "</b>");
+		if (updater->filename().isEmpty()) {
+			lblDescr->setText("<b style=\"color:red\">" + updater->error() + "</b>");
+		}
 	}
 
 public:
@@ -120,6 +123,7 @@ public:
 AppUpdater::AppUpdater(const QString &appName, const QUrl &url,
 					   const QString &version, QObject *parent) :
 	QObject(parent),
+	_type(TypeVersionFile),
 	_externQnam(false),
 	_qnam(NULL),
 	_dlReply(NULL),
@@ -165,28 +169,37 @@ void AppUpdater::initNetworkManager()
 
 void AppUpdater::check()
 {
-	QNetworkReply *reply = networkManager()->get(QNetworkRequest(_url));
+	QNetworkReply *reply;
+	QNetworkRequest req(_url);
+	req.setAttribute(QNetworkRequest::CacheLoadControlAttribute,
+					 QNetworkRequest::AlwaysNetwork);
+	if (_type == TypeVersionFile) {
+		reply = networkManager()->get(req);
+	} else {
+		reply = networkManager()->head(req);
+	}
 	connect(reply, SIGNAL(finished()), SLOT(reply_versionCheckFinished()));
 	connect(reply, SIGNAL(sslErrors(QList<QSslError>)), reply, SLOT(ignoreSslErrors()));
 }
 
 void AppUpdater::cancelDownload()
 {
-	if (_dlReply && _dlReply->isRunning()) {
-		_dlReply->disconnect(this);
+	if (_dlReply) {
 		_dlReply->abort();
-		_dlReply = NULL;
-		delete _dlFile;
-		_dlFile = NULL;
 	}
 }
 
 void AppUpdater::download()
 {
+	if (_dlFile) {
+		delete _dlFile;
+	}
 	_dlFile = new QTemporaryFile(this);
 	if (!_dlFile->open()) {
 		_error = _dlFile->errorString();
-		emit downloadFailed();
+		delete _dlFile;
+		_dlFile = NULL;
+		emit finished();
 		return;
 	}
 
@@ -201,8 +214,11 @@ void AppUpdater::download()
 void AppUpdater::reply_metaDataCahnged()
 {
 	QString cd = _dlReply->rawHeader("Content-Disposition").trimmed();
-	if (!cd.isEmpty() && cd.startsWith("attachment;")) {
-		QString filename = cd.section("filename=", 1);
+	QString filename = cd.section("filename=", 1);
+	if (filename.size() > 2 && filename[0] == '"' &&
+			filename[filename.size()-1] == '"')
+	{
+		filename = filename.mid(1, filename.size() - 2).section('/', -1);
 		if (!filename.isEmpty()) {
 			_proposedFilename = filename;
 			emit fileNameChanged();
@@ -218,14 +234,15 @@ void AppUpdater::reply_downloadProgress()
 void AppUpdater::reply_downloadFinished()
 {
 	if (_dlReply->error() == QNetworkReply::NoError) {
-		emit downloadFinished();
-	} else if (_dlReply->error() != QNetworkReply::OperationCanceledError) {
+		_dlFile->close();
+	} else {
 		_error = _dlReply->errorString();
-		emit downloadFailed();
+		delete _dlFile;
+		_dlFile = NULL;
 	}
 	_dlReply->deleteLater();
 	_dlReply = NULL;
-	_dlFile->close();
+	emit finished();
 }
 
 
@@ -235,10 +252,15 @@ void AppUpdater::reply_versionCheckFinished()
 	_newVersion = _version;
 	QNetworkReply *reply = reinterpret_cast<QNetworkReply *>(sender());
 	if (reply->error() == QNetworkReply::NoError) {
-		_newVersion = reply->readLine().trimmed();
-		if (_newVersion.contains(QRegExp("^\\d+(\\.\\d+){,3}$"))) {
+		QString newVersion;
+		if (_type == TypeVersionFile) {
+			newVersion = reply->readLine().trimmed();
+		} else {
+			newVersion = reply->rawHeader("New-Version");
+		}
+		if (newVersion.contains(QRegExp("^\\d+(\\.\\d+){,3}$"))) {
 			QStringList orig = _version.split('.');
-			QStringList fresh = _newVersion.split('.');
+			QStringList fresh = newVersion.split('.');
 			bool updated = false;
 			for (int i = 0; i < fresh.size(); i++) {
 				if (i == orig.size()) { // fresh has more version components
@@ -254,11 +276,17 @@ void AppUpdater::reply_versionCheckFinished()
 				break;
 			}
 			if (updated) {
-				QUrl url = QUrl::fromEncoded(reply->readLine().trimmed(), QUrl::StrictMode);
-				if (url.isValid()) {
-					_downloadUrl = url;
+				if (_type == TypeVersionFile) {
+					QUrl url = QUrl::fromEncoded(reply->readLine().trimmed(),
+												 QUrl::StrictMode);
+					if (url.isValid()) {
+						_downloadUrl = url;
+					}
+				} else {
+					_downloadUrl = _url;
 				}
 				if (_downloadUrl.isValid()) {
+					_newVersion = newVersion;
 					_proposedFilename = _downloadUrl.path().section('/', -1);
 					QWidget *parentWidget = dynamic_cast<QWidget *>(parent());
 					UpdateDialog *dlg = new UpdateDialog(this, parentWidget);

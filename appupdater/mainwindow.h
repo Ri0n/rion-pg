@@ -23,6 +23,7 @@ protected:
 private slots:
 	void on_pbCheckUpdates_clicked();
 	void checkFinished();
+	void updateFinished();
 
 private:
     Ui::MainWindow *ui;

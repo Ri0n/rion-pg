@@ -12,6 +12,13 @@ class AppUpdater : public QObject
 {
     Q_OBJECT
 public:
+	enum CheckType
+	{
+		TypeVersionFile, // version (and probably download link) stored in file
+		TypeVersionHeader // the url is the same for check and dl. New-Version
+						  // must be present in HEAD response
+	};
+
 	explicit AppUpdater(const QString &appName, const QUrl &url,
 						const QString &version, QObject *parent);
 	void setNetworkManager(QNetworkAccessManager *qnam);
@@ -23,6 +30,7 @@ public:
 	inline const QString &version() const { return _version; }
 	inline const QString &newVersion() const { return _newVersion; }
 	inline const QString &error() const { return _error; }
+	inline void setType(CheckType type) { _type = type; }
 
 private:
 	QNetworkAccessManager* networkManager();
@@ -31,9 +39,8 @@ private:
 signals:
 	void fileNameChanged();
 	void downloadStarted(QNetworkReply*);
-	void downloadFinished();
-	void downloadFailed();
 	void checkFinished();
+	void finished();
 
 public slots:
 	void check();
@@ -47,6 +54,7 @@ private slots:
 	void reply_downloadFinished();
 
 private:
+	CheckType _type;
 	bool _externQnam;
 	QNetworkAccessManager *_qnam;
 	QNetworkReply *_dlReply;

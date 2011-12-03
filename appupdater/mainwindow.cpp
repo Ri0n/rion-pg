@@ -7,8 +7,10 @@ MainWindow::MainWindow(QWidget *parent) :
     ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
-	updater = new AppUpdater("MyApp Name", QUrl("http://localhost/version.file"), "1.2.3", this);
+	updater = new AppUpdater("MyApp Name", QUrl("http://localhost/test.php"), "1.2.3", this);
+	updater->setType(AppUpdater::TypeVersionHeader);
 	connect(updater, SIGNAL(checkFinished()), SLOT(checkFinished()));
+	connect(updater, SIGNAL(finished()), SLOT(updateFinished()));
 }
 
 MainWindow::~MainWindow()
@@ -38,4 +40,16 @@ void MainWindow::checkFinished()
 	QString noUpdates = updater->error().isEmpty()? "No updates" : updater->error();
 	ui->lblCheckStatus->setText(updater->version() == updater->newVersion()?
 									noUpdates : QString("Update found: %1").arg(updater->newVersion()));
+}
+
+void MainWindow::updateFinished()
+{
+	if (!updater->filename().isEmpty()) { // no errors or cancel
+		ui->lblProposedFilename->setText(updater->proposedFilename());
+		ui->lblTempFilename->setText(updater->filename());
+	} else {
+		ui->lblCheckStatus->setText(updater->error());
+		ui->lblProposedFilename->setText("");
+		ui->lblTempFilename->setText("");
+	}
 }
