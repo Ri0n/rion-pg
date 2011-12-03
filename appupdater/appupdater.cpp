@@ -8,11 +8,12 @@
 #include <QPushButton>
 #include <QProgressBar>
 #include <QDesktopServices>
+#include <QDialog>
 
 #include "appupdater.h"
 
 
-class UpdateDialog : public QWidget
+class UpdateDialog : public QDialog
 {
 	Q_OBJECT
 
@@ -24,8 +25,8 @@ class UpdateDialog : public QWidget
 	AppUpdater *updater;
 
 public:
-	UpdateDialog(AppUpdater *updater) :
-		QWidget(),
+	UpdateDialog(AppUpdater *updater, QWidget *parent = NULL) :
+		QDialog(parent),
 		updater(updater)
 	{
 		setWindowTitle(tr("%1 update").arg(updater->appName()));
@@ -259,7 +260,8 @@ void AppUpdater::reply_versionCheckFinished()
 				}
 				if (_downloadUrl.isValid()) {
 					_proposedFilename = _downloadUrl.path().section('/', -1);
-					UpdateDialog *dlg = new UpdateDialog(this);
+					QWidget *parentWidget = dynamic_cast<QWidget *>(parent());
+					UpdateDialog *dlg = new UpdateDialog(this, parentWidget);
 					connect(dlg, SIGNAL(downloadAccepted()), SLOT(download()));
 					connect(dlg, SIGNAL(cancelDownload()), SLOT(cancelDownload()));
 					dlg->show();
