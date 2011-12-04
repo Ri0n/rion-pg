@@ -40,6 +40,7 @@ public:
 		lblDescr = new QLabel(tr("New version of <a href=\"%1\">%2</a> is available: %3")
 							  .arg(updater->downloadUrl().toEncoded(),
 								   updater->appName(), updater->newVersion()));
+		lblDescr->setOpenExternalLinks(true);
 		layout->addWidget(lblDescr);
 
 		pbarDownload = new QProgressBar();
@@ -58,10 +59,9 @@ public:
 		buttonBox->addButton(QDialogButtonBox::Cancel);
 		layout->addWidget(buttonBox);
 
+		setLayout(layout);
 		pbHide->setVisible(false);
 		pbarDownload->setVisible(false);
-
-		setLayout(layout);
 
 		connect(updater, SIGNAL(fileNameChanged()), SLOT(updateDownloadFilename()));
 		connect(updater, SIGNAL(finished()), SLOT(showDownloadError())); // if any
