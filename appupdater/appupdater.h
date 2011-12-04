@@ -4,9 +4,11 @@
 #include <QObject>
 #include <QUrl>
 #include <QTemporaryFile>
+#include <QPointer>
 
 class QNetworkAccessManager;
 class QNetworkReply;
+class UpdateDialog;
 
 class AppUpdater : public QObject
 {
@@ -31,16 +33,19 @@ public:
 	inline const QString &newVersion() const { return _newVersion; }
 	inline const QString &error() const { return _error; }
 	inline void setType(CheckType type) { _type = type; }
+	void setChecksEnabled(bool ce);
 
 private:
 	QNetworkAccessManager* networkManager();
 	void initNetworkManager();
 
 signals:
+	friend class UpdateDialog;
 	void fileNameChanged();
 	void downloadStarted(QNetworkReply*);
 	void checkFinished();
 	void finished();
+	void checkEnabled(bool); // where user want to enabla/disable future checks
 
 public slots:
 	void check();
@@ -59,6 +64,7 @@ private:
 	QNetworkAccessManager *_qnam;
 	QNetworkReply *_dlReply;
 	QTemporaryFile *_dlFile;
+	QPointer<UpdateDialog> _dlg;
 	QString _appName;
 	QUrl _url;
 	QUrl _downloadUrl;

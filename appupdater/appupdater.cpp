@@ -7,6 +7,7 @@
 #include <QDialogButtonBox>
 #include <QPushButton>
 #include <QProgressBar>
+#include <QCheckBox>
 #include <QDesktopServices>
 #include <QDialog>
 
@@ -22,6 +23,7 @@ class UpdateDialog : public QDialog
 	QPushButton *pbHide;
 	QProgressBar *pbarDownload;
 	QLabel *lblDescr;
+	QCheckBox *ckDontCheckUpdates;
 	AppUpdater *updater;
 
 public:
@@ -42,6 +44,9 @@ public:
 		pbarDownload->setMaximum(100);
 		layout->addWidget(pbarDownload);
 
+		ckDontCheckUpdates = new QCheckBox(tr("Don't check for updates."));
+		layout->addWidget(ckDontCheckUpdates);
+
 		pbDownload = new QPushButton(tr("&Install now"));
 		pbHide = new QPushButton(tr("&Hide"));
 		QDialogButtonBox *buttonBox = new QDialogButtonBox(Qt::Horizontal);
@@ -61,6 +66,12 @@ public:
 		connect(pbDownload, SIGNAL(clicked()), SLOT(download()));
 		connect(pbHide, SIGNAL(clicked()), SLOT(close()));
 		connect(buttonBox->button(QDialogButtonBox::Cancel), SIGNAL(clicked()), SLOT(cancel()));
+		connect(ckDontCheckUpdates, SIGNAL(stateChanged(int)), SLOT(dontCheckChanged(int)));
+	}
+
+	inline void setChecksEnabled(bool ce)
+	{
+		ckDontCheckUpdates->setChecked(!ce);
 	}
 
 public slots:
@@ -77,6 +88,7 @@ private slots:
 	void download()
 	{
 		pbDownload->hide();
+		ckDontCheckUpdates->hide();
 		pbHide->show();
 		pbarDownload->show();
 		updateDownloadFilename();
@@ -109,6 +121,11 @@ private slots:
 		if (updater->filename().isEmpty()) {
 			lblDescr->setText("<b style=\"color:red\">" + updater->error() + "</b>");
 		}
+	}
+
+	void dontCheckChanged(int state)
+	{
+		emit updater->checkEnabled(state == Qt::Unchecked);
 	}
 
 public:
@@ -165,6 +182,13 @@ QNetworkAccessManager* AppUpdater::networkManager()
 void AppUpdater::initNetworkManager()
 {
 
+}
+
+void AppUpdater::setChecksEnabled(bool ce)
+{
+	if (!_dlg.isNull()) {
+		_dlg->setChecksEnabled(ce);
+	}
 }
 
 void AppUpdater::check()
@@ -249,7 +273,6 @@ void AppUpdater::reply_downloadFinished()
 void AppUpdater::reply_versionCheckFinished()
 {
 	_error.clear();
-	_newVersion = _version;
 	QNetworkReply *reply = reinterpret_cast<QNetworkReply *>(sender());
 	if (reply->error() == QNetworkReply::NoError) {
 		QString newVersion;
@@ -289,10 +312,13 @@ void AppUpdater::reply_versionCheckFinished()
 					_newVersion = newVersion;
 					_proposedFilename = _downloadUrl.path().section('/', -1);
 					QWidget *parentWidget = dynamic_cast<QWidget *>(parent());
-					UpdateDialog *dlg = new UpdateDialog(this, parentWidget);
-					connect(dlg, SIGNAL(downloadAccepted()), SLOT(download()));
-					connect(dlg, SIGNAL(cancelDownload()), SLOT(cancelDownload()));
-					dlg->show();
+					if (!_dlg.isNull()) {
+						delete _dlg;
+					}
+					_dlg = new UpdateDialog(this, parentWidget);
+					connect(_dlg, SIGNAL(downloadAccepted()), SLOT(download()));
+					connect(_dlg, SIGNAL(cancelDownload()), SLOT(cancelDownload()));
+					_dlg->show();
 				} else {
 					_error = tr("Invalid download url");
 				}
