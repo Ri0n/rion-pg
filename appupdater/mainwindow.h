@@ -24,6 +24,7 @@ private slots:
 	void on_pbCheckUpdates_clicked();
 	void checkFinished();
 	void updateFinished();
+	void checksEnabled(bool s);
 
 private:
     Ui::MainWindow *ui;

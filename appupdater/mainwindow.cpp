@@ -11,6 +11,7 @@ MainWindow::MainWindow(QWidget *parent) :
 	updater->setType(AppUpdater::TypeVersionHeader);
 	connect(updater, SIGNAL(checkFinished()), SLOT(checkFinished()));
 	connect(updater, SIGNAL(finished()), SLOT(updateFinished()));
+	connect(updater, SIGNAL(checkEnabled(bool)), SLOT(checksEnabled(bool)));
 }
 
 MainWindow::~MainWindow()
@@ -52,4 +53,9 @@ void MainWindow::updateFinished()
 		ui->lblProposedFilename->setText("");
 		ui->lblTempFilename->setText("");
 	}
+}
+
+void MainWindow::checksEnabled(bool s)
+{
+	ui->lblCheckStatus->setText(s?"checks enable requested":"checks disable requested");
 }

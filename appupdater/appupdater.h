@@ -33,7 +33,8 @@ public:
 	inline const QString &newVersion() const { return _newVersion; }
 	inline const QString &error() const { return _error; }
 	inline void setType(CheckType type) { _type = type; }
-	void setChecksEnabled(bool ce);
+	inline bool isChecksEnabled() const { return _checksEnabled; }
+	QString handleDownload(); // delete temp file object but saving file
 
 private:
 	QNetworkAccessManager* networkManager();
@@ -48,6 +49,7 @@ signals:
 	void checkEnabled(bool); // where user want to enabla/disable future checks
 
 public slots:
+	void setChecksEnabled(bool ce);
 	void check();
 	void cancelDownload();
 
@@ -61,6 +63,7 @@ private slots:
 private:
 	CheckType _type;
 	bool _externQnam;
+	bool _checksEnabled;
 	QNetworkAccessManager *_qnam;
 	QNetworkReply *_dlReply;
 	QTemporaryFile *_dlFile;

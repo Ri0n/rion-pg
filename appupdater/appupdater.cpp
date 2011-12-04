@@ -25,11 +25,13 @@ class UpdateDialog : public QDialog
 	QLabel *lblDescr;
 	QCheckBox *ckDontCheckUpdates;
 	AppUpdater *updater;
+	bool _externalChecksChange;
 
 public:
 	UpdateDialog(AppUpdater *updater, QWidget *parent = NULL) :
 		QDialog(parent),
-		updater(updater)
+		updater(updater),
+		_externalChecksChange(false)
 	{
 		setWindowTitle(tr("%1 update").arg(updater->appName()));
 		setAttribute(Qt::WA_DeleteOnClose);
@@ -45,6 +47,7 @@ public:
 		layout->addWidget(pbarDownload);
 
 		ckDontCheckUpdates = new QCheckBox(tr("Don't check for updates."));
+		ckDontCheckUpdates->setChecked(!updater->isChecksEnabled());
 		layout->addWidget(ckDontCheckUpdates);
 
 		pbDownload = new QPushButton(tr("&Install now"));
@@ -71,7 +74,9 @@ public:
 
 	inline void setChecksEnabled(bool ce)
 	{
+		_externalChecksChange = true;
 		ckDontCheckUpdates->setChecked(!ce);
+		_externalChecksChange = false;
 	}
 
 public slots:
@@ -125,11 +130,11 @@ private slots:
 
 	void dontCheckChanged(int state)
 	{
-		emit updater->checkEnabled(state == Qt::Unchecked);
+		if (!_externalChecksChange) {
+			updater->_checksEnabled = (state == Qt::Unchecked);
+			emit updater->checkEnabled(updater->_checksEnabled);
+		}
 	}
-
-public:
-	QUrl url;
 };
 
 
@@ -142,6 +147,7 @@ AppUpdater::AppUpdater(const QString &appName, const QUrl &url,
 	QObject(parent),
 	_type(TypeVersionFile),
 	_externQnam(false),
+	_checksEnabled(true),
 	_qnam(NULL),
 	_dlReply(NULL),
 	_dlFile(NULL),
@@ -204,6 +210,17 @@ void AppUpdater::check()
 	}
 	connect(reply, SIGNAL(finished()), SLOT(reply_versionCheckFinished()));
 	connect(reply, SIGNAL(sslErrors(QList<QSslError>)), reply, SLOT(ignoreSslErrors()));
+}
+
+QString AppUpdater::handleDownload()
+{
+	QString fn = filename();
+	if (_dlFile) {
+		_dlFile->setAutoRemove(false);
+		delete _dlFile;
+		_dlFile = NULL;
+	}
+	return fn;
 }
 
 void AppUpdater::cancelDownload()
