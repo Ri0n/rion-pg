@@ -1,3 +1,25 @@
+/*
+Copyright (c) 2011 Il'inykh Sergey
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+*/
+
+
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QStringList>
@@ -10,6 +32,8 @@
 #include <QCheckBox>
 #include <QDesktopServices>
 #include <QDialog>
+#include <QTextEdit>
+#include <QTimer>
 
 #include "appupdater.h"
 
@@ -18,7 +42,8 @@ class UpdateDialog : public QDialog
 {
 	Q_OBJECT
 
-
+	QPushButton *pbDetails;
+	QTextEdit *teDetails;
 	QPushButton *pbDownload;
 	QPushButton *pbHide;
 	QProgressBar *pbarDownload;
@@ -47,13 +72,23 @@ public:
 		pbarDownload->setMaximum(100);
 		layout->addWidget(pbarDownload);
 
+		teDetails = new QTextEdit;
+		teDetails->setVisible(false);
+		teDetails->setMinimumHeight(100);
+		teDetails->resize(0, 100);
+		teDetails->setReadOnly(true);
+		layout->addWidget(teDetails);
+
 		ckDontCheckUpdates = new QCheckBox(tr("Don't check for updates."));
 		ckDontCheckUpdates->setChecked(!updater->isChecksEnabled());
 		layout->addWidget(ckDontCheckUpdates);
 
+		pbDetails = new QPushButton(tr("&Details"));
+		pbDetails->setCheckable(true);
 		pbDownload = new QPushButton(tr("&Install now"));
 		pbHide = new QPushButton(tr("&Hide"));
 		QDialogButtonBox *buttonBox = new QDialogButtonBox(Qt::Horizontal);
+		buttonBox->addButton(pbDetails, QDialogButtonBox::ActionRole);
 		buttonBox->addButton(pbDownload, QDialogButtonBox::ActionRole);
 		buttonBox->addButton(pbHide, QDialogButtonBox::ActionRole);
 		buttonBox->addButton(QDialogButtonBox::Cancel);
@@ -66,10 +101,13 @@ public:
 		connect(updater, SIGNAL(fileNameChanged()), SLOT(updateDownloadFilename()));
 		connect(updater, SIGNAL(finished()), SLOT(showDownloadError())); // if any
 		connect(updater, SIGNAL(downloadStarted(QNetworkReply*)), SLOT(downloadStarted(QNetworkReply*)));
+		connect(updater, SIGNAL(detailsChanged()), SLOT(updateDetails()));
 		connect(pbDownload, SIGNAL(clicked()), SLOT(download()));
 		connect(pbHide, SIGNAL(clicked()), SLOT(close()));
 		connect(buttonBox->button(QDialogButtonBox::Cancel), SIGNAL(clicked()), SLOT(cancel()));
 		connect(ckDontCheckUpdates, SIGNAL(stateChanged(int)), SLOT(dontCheckChanged(int)));
+		connect(pbDetails, SIGNAL(toggled(bool)), SLOT(toggleDetails(bool)));
+		updateDetails();
 	}
 
 	inline void setChecksEnabled(bool ce)
@@ -90,6 +128,17 @@ signals:
 	void cancelDownload();
 
 private slots:
+	void toggleDetails(bool state)
+	{
+		teDetails->setVisible(state);
+		QTimer::singleShot(0, this, SLOT(resizeToContents()));
+	}
+
+	void resizeToContents()
+	{
+		resize(minimumSizeHint());
+	}
+
 	void download()
 	{
 		pbDownload->hide();
@@ -134,6 +183,13 @@ private slots:
 			updater->_checksEnabled = (state == Qt::Unchecked);
 			emit updater->checkEnabled(updater->_checksEnabled);
 		}
+	}
+
+	void updateDetails()
+	{
+		pbDetails->setChecked(false);
+		pbDetails->setVisible(!updater->details().isEmpty());
+		teDetails->setText(updater->details());
 	}
 };
 
@@ -316,11 +372,19 @@ void AppUpdater::reply_versionCheckFinished()
 				break;
 			}
 			if (updated) {
+				_details.clear();
 				if (_type == TypeVersionFile) {
-					QUrl url = QUrl::fromEncoded(reply->readLine().trimmed(),
-												 QUrl::StrictMode);
-					if (url.isValid()) {
-						_downloadUrl = url;
+					QByteArray data = reply->read(3);
+					if (data == "dl:") {
+						QUrl url = QUrl::fromEncoded(reply->readLine().trimmed(),
+													 QUrl::StrictMode);
+						if (url.isValid()) {
+							_downloadUrl = url;
+						}
+					} else if (data.size()) {
+						data += reply->readAll();
+						_details = QString::fromUtf8(data.constData(),
+													 data.size()).trimmed();
 					}
 				} else {
 					_downloadUrl = _url;

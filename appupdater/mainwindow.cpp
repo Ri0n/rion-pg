@@ -41,6 +41,7 @@ void MainWindow::checkFinished()
 	QString noUpdates = updater->error().isEmpty()? "No updates" : updater->error();
 	ui->lblCheckStatus->setText(updater->version() == updater->newVersion()?
 									noUpdates : QString("Update found: %1").arg(updater->newVersion()));
+	updater->setDetails("Hello world");
 }
 
 void MainWindow::updateFinished()
