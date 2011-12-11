@@ -92,7 +92,7 @@ public:
 	QString handleDownload(); // delete temp file object but saving file
 
 private:
-	QNetworkAccessManager* networkManager();
+	QNetworkAccessManager* qnam();
 	void initNetworkManager();
 
 signals:

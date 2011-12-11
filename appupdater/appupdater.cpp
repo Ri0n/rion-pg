@@ -85,6 +85,7 @@ public:
 
 		pbDetails = new QPushButton(tr("&Details"));
 		pbDetails->setCheckable(true);
+		pbDetails->setAutoDefault(false);
 		pbDownload = new QPushButton(tr("&Install now"));
 		pbHide = new QPushButton(tr("&Hide"));
 		QDialogButtonBox *buttonBox = new QDialogButtonBox(Qt::Horizontal);
@@ -231,7 +232,7 @@ void AppUpdater::setNetworkManager(QNetworkAccessManager *qnam)
 	}
 }
 
-QNetworkAccessManager* AppUpdater::networkManager()
+QNetworkAccessManager* AppUpdater::qnam()
 {
 	if (!_qnam) {
 		_qnam = new QNetworkAccessManager(this);
@@ -260,9 +261,9 @@ void AppUpdater::check()
 	req.setAttribute(QNetworkRequest::CacheLoadControlAttribute,
 					 QNetworkRequest::AlwaysNetwork);
 	if (_type == TypeVersionFile) {
-		reply = networkManager()->get(req);
+		reply = qnam()->get(req);
 	} else {
-		reply = networkManager()->head(req);
+		reply = qnam()->head(req);
 	}
 	connect(reply, SIGNAL(finished()), SLOT(reply_versionCheckFinished()));
 	connect(reply, SIGNAL(sslErrors(QList<QSslError>)), reply, SLOT(ignoreSslErrors()));
@@ -300,7 +301,7 @@ void AppUpdater::download()
 		return;
 	}
 
-	_dlReply = networkManager()->get(QNetworkRequest(_downloadUrl));
+	_dlReply = qnam()->get(QNetworkRequest(_downloadUrl));
 	connect(_dlReply, SIGNAL(metaDataChanged()), SLOT(reply_metaDataCahnged()));
 	connect(_dlReply, SIGNAL(downloadProgress(qint64,qint64)), SLOT(reply_downloadProgress()));
 	connect(_dlReply, SIGNAL(finished()), SLOT(reply_downloadFinished()));
