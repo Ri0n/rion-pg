@@ -91,7 +91,7 @@ public:
 		QDialogButtonBox *buttonBox = new QDialogButtonBox(Qt::Horizontal);
 		buttonBox->addButton(pbDetails, QDialogButtonBox::ActionRole);
 		buttonBox->addButton(pbDownload, QDialogButtonBox::ActionRole);
-		buttonBox->addButton(pbHide, QDialogButtonBox::ActionRole);
+		buttonBox->addButton(pbHide, QDialogButtonBox::AcceptRole);
 		buttonBox->addButton(QDialogButtonBox::Cancel);
 		layout->addWidget(buttonBox);
 
@@ -105,9 +105,10 @@ public:
 		connect(updater, SIGNAL(detailsChanged()), SLOT(updateDetails()));
 		connect(pbDownload, SIGNAL(clicked()), SLOT(download()));
 		connect(pbHide, SIGNAL(clicked()), SLOT(close()));
-		connect(buttonBox->button(QDialogButtonBox::Cancel), SIGNAL(clicked()), SLOT(cancel()));
 		connect(ckDontCheckUpdates, SIGNAL(stateChanged(int)), SLOT(dontCheckChanged(int)));
 		connect(pbDetails, SIGNAL(toggled(bool)), SLOT(toggleDetails(bool)));
+		connect(buttonBox, SIGNAL(rejected()), SLOT(reject()));
+		connect(buttonBox, SIGNAL(accepted()), SLOT(accept()));
 		updateDetails();
 	}
 
@@ -146,6 +147,7 @@ private slots:
 		ckDontCheckUpdates->hide();
 		pbHide->show();
 		pbarDownload->show();
+		pbHide->setFocus();
 		updateDownloadFilename();
 		emit downloadAccepted();
 	}
@@ -165,10 +167,11 @@ private slots:
 		}
 	}
 
-	void cancel()
+	void reject()
 	{
+		qDebug("cancel");
 		emit cancelDownload();
-		close();
+		QDialog::reject();
 	}
 
 	void showDownloadError()
