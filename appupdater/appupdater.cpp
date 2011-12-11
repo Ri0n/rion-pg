@@ -98,6 +98,7 @@ public:
 		setLayout(layout);
 		pbHide->setVisible(false);
 		pbarDownload->setVisible(false);
+		pbDownload->setFocus();
 
 		connect(updater, SIGNAL(fileNameChanged()), SLOT(updateDownloadFilename()));
 		connect(updater, SIGNAL(finished()), SLOT(showDownloadError())); // if any
@@ -193,7 +194,7 @@ private slots:
 	{
 		pbDetails->setChecked(false);
 		pbDetails->setVisible(!updater->details().isEmpty());
-		teDetails->setText(updater->details());
+		teDetails->setPlainText(updater->details());
 	}
 };
 
@@ -385,11 +386,11 @@ void AppUpdater::reply_versionCheckFinished()
 						if (url.isValid()) {
 							_downloadUrl = url;
 						}
-					} else if (data.size()) {
-						data += reply->readAll();
-						_details = QString::fromUtf8(data.constData(),
-													 data.size()).trimmed();
+						data.clear();
 					}
+					data += reply->readAll();
+					_details = QString::fromUtf8(data.constData(),
+												 data.size()).trimmed();
 				} else {
 					_downloadUrl = _url;
 				}

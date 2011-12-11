@@ -7,8 +7,11 @@ MainWindow::MainWindow(QWidget *parent) :
     ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
-	updater = new AppUpdater("MyApp Name", QUrl("http://localhost/test.php"), "1.2.3", this);
-	updater->setType(AppUpdater::TypeVersionHeader);
+	//updater = new AppUpdater("MyApp Name", QUrl("http://localhost/test.php"), "1.2.3", this);
+	//updater->setType(AppUpdater::TypeVersionHeader);
+
+	updater = new AppUpdater("MyApp Name", QUrl("http://localhost/agent.version"), "1.2.3", this);
+
 	connect(updater, SIGNAL(checkFinished()), SLOT(checkFinished()));
 	connect(updater, SIGNAL(finished()), SLOT(updateFinished()));
 	connect(updater, SIGNAL(checkEnabled(bool)), SLOT(checksEnabled(bool)));
@@ -41,7 +44,7 @@ void MainWindow::checkFinished()
 	QString noUpdates = updater->error().isEmpty()? "No updates" : updater->error();
 	ui->lblCheckStatus->setText(updater->version() == updater->newVersion()?
 									noUpdates : QString("Update found: %1").arg(updater->newVersion()));
-	updater->setDetails("Hello world");
+	//updater->setDetails("Hello world");
 }
 
 void MainWindow::updateFinished()
