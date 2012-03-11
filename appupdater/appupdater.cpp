@@ -37,6 +37,21 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 #include "appupdater.h"
 
+static QList<quint32> splitVersion(const QString &version)
+{
+	QList<quint32> result;
+	foreach (const QString &s, version.split('.')) {
+		result.append(s.toUInt());
+	}
+	while (result.size() && result.last() == 0) {
+		result.removeLast();
+	}
+	if (!result.size()) {
+		result.append(0);
+	}
+	return result;
+}
+
 
 class UpdateDialog : public QDialog
 {
@@ -170,7 +185,6 @@ private slots:
 
 	void reject()
 	{
-		qDebug("cancel");
 		emit cancelDownload();
 		QDialog::reject();
 	}
@@ -360,16 +374,16 @@ void AppUpdater::reply_versionCheckFinished()
 			newVersion = reply->rawHeader("New-Version");
 		}
 		if (newVersion.contains(QRegExp("^\\d+(\\.\\d+){,3}$"))) {
-			QStringList orig = _version.split('.');
-			QStringList fresh = newVersion.split('.');
+			QList<quint32> orig = splitVersion(_version);
+			QList<quint32> fresh = splitVersion(newVersion);
 			bool updated = false;
 			for (int i = 0; i < fresh.size(); i++) {
 				if (i == orig.size()) { // fresh has more version components
 					updated = true;
 					break;
 				}
-				int origN = orig.value(i).toInt();
-				int freshN = fresh.value(i).toInt();
+				quint32 origN = orig.value(i);
+				quint32 freshN = fresh.value(i);
 				if (origN == freshN) {
 					continue;
 				}
