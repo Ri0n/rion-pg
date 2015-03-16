@@ -1,0 +1,1 @@
+&lt;wiki:gadget url="http://psi-plus.com/facebook\_gadget.xml" height="200" border="0" /&gt;
