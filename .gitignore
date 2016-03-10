@@ -1,0 +1,5 @@
+*.o
+ui_*.h
+moc_*.cpp
+qrc_*.cpp
+*.swp

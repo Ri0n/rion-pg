@@ -4,9 +4,11 @@
 #
 #-------------------------------------------------
 
-QT       += core gui
+QT       += core gui uitools
 
-CONFIG += uitools
+greaterThan(QT_MAJOR_VERSION, 4) {
+    QT += widgets
+} 
 
 TARGET = popup
 TEMPLATE = app
