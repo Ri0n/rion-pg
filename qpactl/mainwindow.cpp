@@ -3,21 +3,31 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 
+#include "pulsectl.h"
+
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
     ui(new Ui::MainWindow)
 {
 	ui->setupUi(this);
 
+	PaCtl *ctl = new PaCtl(this);
 
+	PaTaskSources *t = new PaTaskSources(ctl);
+	connect(t, SIGNAL(ready()), SLOT(sourcesFinihed()));
 
-	QDBusConnection bus = QDBusConnection::sessionBus();
-    QDBusInterface dbus_iface("org.freedesktop.DBus", "/org/freedesktop/DBus",
-                              "org.freedesktop.DBus", bus);
-    qDebug() << dbus_iface.call("ListNames").arguments().at(0);
 }
 
 MainWindow::~MainWindow()
 {
 	delete ui;
+}
+
+void MainWindow::sourcesFinihed()
+{
+	QList<PaTaskSources::Source> sources = ((PaTaskSources *)sender())->sources();
+
+	foreach (const PaTaskSources::Source &s, sources) {
+		qDebug() << s.id << s.description << s.monitorId;
+	}
 }

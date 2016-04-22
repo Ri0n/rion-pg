@@ -8,6 +8,23 @@
 #include "pulsectl.h"
 
 
+class PaDeferredTask
+{
+public:
+	PaContext *context;
+	pa_operation *op;
+	int errorCode;
+	PaTask *task;
+
+	PaDeferredTask(PaTask *task);
+
+	virtual ~PaDeferredTask();
+	virtual void run() = 0;
+	void finish();
+	void setError(int code);
+	void setSuccess();
+};
+
 class PaMainloopPrivate : public QSharedData
 {
 public:
@@ -78,12 +95,6 @@ private:
 		static_cast<PaContext*>(userdata)->onStateCallback();
 	}
 
-	static void get_source_info_callback(pa_context *c, const pa_source_info *i, int is_last, void *userdata)
-	{
-		static_cast<PaContext*>(userdata)->onSourceInfoReady(c, i, is_last);
-	}
-
-
 protected:
 	void onStateCallback()
 	{
@@ -95,7 +106,11 @@ protected:
 	            break;
 
 	        case PA_CONTEXT_READY:
-				// TODO implement all stuff here
+				ready = true;
+				PaDeferredTask *t;
+				while ((t = taskQueue.takeFirst())) {
+					t->run();
+				}
 				break;
 
 			case PA_CONTEXT_TERMINATED:
@@ -152,11 +167,14 @@ public:
 	pa_context *context;
 	pa_proplist *proplist;
 	int actions;
+	bool ready;
 
 	QString server;
 	PaMainloop mainloop;
+	QList<PaDeferredTask*> taskQueue;
 
 	PaContext(const QString &server = QString::null) :
+	    ready(false),
 	    server(server)
 	{
 		proplist = pa_proplist_new();
@@ -184,23 +202,148 @@ public:
 	        pa_proplist_free(proplist);
 	}
 
-	void querySourceInfoList()
+	void tryExec(PaDeferredTask *t)
 	{
-		pa_operation *o = NULL;
-		o = pa_context_get_source_info_list(context, get_source_info_callback, this);
+		if (ready) {
+			t->run();
+		} else {
+			taskQueue.append(t);
+		}
 	}
 };
 
 
-class PulseCtlPrivate
+
+
+
+//------------------------------------------------------------
+// PaDeferredTask
+//------------------------------------------------------------
+PaDeferredTask::PaDeferredTask(PaTask *task) :
+	op(0),
+	errorCode(0),
+	task(task)
+{
+	context = static_cast<PaCtl*>(task->parent())->context();
+}
+
+PaDeferredTask::~PaDeferredTask()
+{
+	if (op) {
+		pa_operation_cancel(op);
+		pa_operation_unref(op);
+	}
+}
+
+void PaDeferredTask::finish()
+{
+	emit task->ready();
+	if (op) {
+		pa_operation_unref(op);
+		op = 0;
+	}
+	task->deleteLater();
+}
+
+void PaDeferredTask::setError(int code)
+{
+	errorCode = code;
+	finish();
+}
+
+void PaDeferredTask::setSuccess()
+{
+	errorCode = 0;
+	finish();
+}
+
+//------------------------------------------------------------
+// PaTask
+//------------------------------------------------------------
+PaTask::PaTask(PaCtl *parent) :
+    QObject(parent)
+{
+
+}
+
+PaTask::~PaTask()
+{
+	delete d;
+}
+
+void PaTask::run()
+{
+	d->context->tryExec(d);
+}
+
+
+
+//------------------------------------------------------------
+// PaTaskSources
+//------------------------------------------------------------
+class PaTaskSourcesPrivate : public PaDeferredTask
 {
 public:
-	PulseCtlPrivate()
+	QList<PaTaskSources::Source> sources;
+
+	PaTaskSourcesPrivate(PaTask *task) :
+	    PaDeferredTask(task) {}
+
+	void onSourceInfo(const pa_source_info *i, int is_last)
+	{
+		if (is_last < 0) {
+			setError(pa_context_errno(context->context));
+			return;
+		}
+
+		if (is_last) {
+			setSuccess();
+		}
+
+		PaTaskSources::Source s;
+		s.id = QString::fromLatin1(i->name);
+		s.description = QString::fromLocal8Bit(i->description);
+		s.monitorId = QString::fromLatin1(i->monitor_of_sink_name);
+
+		sources.append(s);
+	}
+
+	static void get_source_info_callback(pa_context *c, const pa_source_info *i, int is_last, void *userdata)
+	{
+		Q_UNUSED(c);
+		static_cast<PaTaskSourcesPrivate*>(userdata)->onSourceInfo(i, is_last);
+	}
+
+	void run()
+	{
+		op = pa_context_get_source_info_list(context->context, get_source_info_callback, this);
+	}
+
+};
+
+PaTaskSources::PaTaskSources(PaCtl *parent) :
+    PaTask(parent)
+{
+	d = new PaTaskSourcesPrivate(this);
+}
+
+QList<PaTaskSources::Source> PaTaskSources::sources() const
+{
+	return static_cast<PaTaskSourcesPrivate*>(d)->sources;
+}
+
+//------------------------------------------------------------
+// PaCtl
+//------------------------------------------------------------
+class PaCtlPrivate
+{
+public:
+	PaCtlPrivate()
 	{
 		context = new PaContext();
 	}
 
-	~PulseCtlPrivate()
+	~PaCtlPrivate()
 	{
 		delete context;
 	}
@@ -211,17 +354,14 @@ public:
 
 
 
-PulseCtl::PulseCtl(QObject *parent) :
+PaCtl::PaCtl(QObject *parent) :
     QObject(parent),
-	d(new PulseCtlPrivate)
+	d(new PaCtlPrivate)
 {
 
 }
 
-PATask *PulseCtl::sourcesList()
+PaContext *PaCtl::context()
 {
-
+	return d->context;
 }
-
-
-

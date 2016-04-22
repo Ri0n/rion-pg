@@ -1,49 +1,64 @@
-#ifndef PULSECTL_H
-#define PULSECTL_H
+#ifndef PaCtl_H
+#define PaCtl_H
 
 #include <QObject>
 
-class PulseCtlPrivate;
+class PaCtlPrivate;
+class PaContext;
+class PaCtl;
 
-
-class PATask : public QObject
+class PaDeferredTask;
+class PaTask : public QObject
 {
 	Q_OBJECT
-
+	friend class PaDeferredTask;
 public:
-	enum Action {
-		None,
-		Exit,
-		List
-	};
+	PaTask(PaCtl *parent = 0);
+	~PaTask();
 
-	enum ListType {
-		Sources
-	};
+	void run();
 
 signals:
 	void ready();
 
-private:
-	Action action;
+protected:
+	void finish();
+
+	PaDeferredTask *d;
 };
 
-class PulseCtl : public QObject
+class PaTaskSources : public PaTask
+{
+	Q_OBJECT
+
+public:
+	PaTaskSources(PaCtl *parent = 0);
+
+	struct Source {
+		QString id;
+		QString description;
+		QString monitorId; // id of monitored sink
+	};
+
+	QList<Source> sources() const;
+};
+
+
+class PaCtl : public QObject
 {
 	Q_OBJECT
 public:
 
-	explicit PulseCtl(QObject *parent = 0);
-
-	PATask *sourcesList();
+	explicit PaCtl(QObject *parent = 0);
+	PaContext *context();
 
 signals:
 
 public slots:
 
 private:
-	friend class PulseCtlPrivate;
-	class PulseCtlPrivate *d;
+	friend class PaCtlPrivate;
+	class PaCtlPrivate *d;
 };
 
-#endif // PULSECTL_H
+#endif // PaCtl_H
