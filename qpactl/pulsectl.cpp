@@ -2,8 +2,13 @@
 #include <pulse/mainloop.h>
 #include <pulse/mainloop-signal.h>
 #include <pulse/error.h>
+#include <sys/eventfd.h>
+#include <unistd.h>
 
 #include <QExplicitlySharedDataPointer>
+#include <QThread>
+#include <QCoreApplication>
+#include <QDebug>
 
 #include "pulsectl.h"
 
@@ -11,7 +16,7 @@
 class PaDeferredTask
 {
 public:
-	PaContext *context;
+	PaCtlPrivate *ctl;
 	pa_operation *op;
 	int errorCode;
 	PaTask *task;
@@ -25,142 +30,34 @@ public:
 	void setSuccess();
 };
 
-class PaMainloopPrivate : public QSharedData
-{
-public:
-	PaMainloopPrivate() :
-	    m(0), mainloop_api(0) {}
-
-	pa_mainloop *m;
-	pa_mainloop_api *mainloop_api;
-};
 
 class PaMainloop
 {
 public:
-	QExplicitlySharedDataPointer<PaMainloopPrivate> d;
+	pa_mainloop *mainloop;
+	pa_mainloop_api *api;
 
-
-	PaMainloop() :
-	    d(new PaMainloopPrivate)
-	{
-		if (!(d->m = pa_mainloop_new())) {
-	        qDebug("pa_mainloop_new() failed.");
-	        return;
-	    }
-
-		d->mainloop_api = pa_mainloop_get_api(d->m);
-
-	//	Q_ASSERT(pa_signal_init(mainloop_api) == 0);
-	//    pa_signal_new(SIGINT, exit_signal_callback, NULL);
-	//    pa_signal_new(SIGTERM, exit_signal_callback, NULL);
-	//    pa_disable_sigpipe();
-
-	}
-
-	~PaMainloop()
-	{
-		if (d->m) {
-	        pa_signal_done();
-	        pa_mainloop_free(d->m);
-	    }
-	}
-
-	void quit(int ret) {
-	    Q_ASSERT(d->mainloop_api);
-	    d->mainloop_api->quit(d->mainloop_api, ret);
-	}
-
-	void run()
-	{
-		int ret = 1;
-
-		if (pa_mainloop_run(d->m, &ret) < 0) {
-	        qDebug("pa_mainloop_run() failed.");
-	        return;
-	    }
-	}
-
-	inline pa_mainloop_api *api() const { return d->mainloop_api; }
+	PaMainloop();
+	~PaMainloop();
+	void quit(int ret);
+	void run();
 };
 
-class PaContext
-{
 
+class PaContext : public QObject
+{
+	Q_OBJECT
 private:
-	static void context_state_callback(pa_context *c, void *userdata)
-	{
-		Q_ASSERT(c);
-		Q_ASSERT(userdata);
-		static_cast<PaContext*>(userdata)->onStateCallback();
-	}
+	static void context_state_callback(pa_context *c, void *userdata);
+	static void processIPC(pa_mainloop_api *mainloop_api, pa_io_event *stdio_event,
+	                           int fd, pa_io_event_flags_t f, void *userdata);
 
 protected:
-	void onStateCallback()
-	{
 
-		switch (pa_context_get_state(context)) {
-	        case PA_CONTEXT_CONNECTING:
-	        case PA_CONTEXT_AUTHORIZING:
-	        case PA_CONTEXT_SETTING_NAME:
-	            break;
-
-	        case PA_CONTEXT_READY:
-				ready = true;
-				PaDeferredTask *t;
-				while ((t = taskQueue.takeFirst())) {
-					t->run();
-				}
-				break;
-
-			case PA_CONTEXT_TERMINATED:
-				mainloop.quit(0);
-				break;
-
-			case PA_CONTEXT_FAILED:
-			default:
-				qDebug("Connection failure: %s", pa_strerror(pa_context_errno(context)));
-				mainloop.quit(1);
-		}
-
-	}
-
-	void onSourceInfoReady(pa_context *c, const pa_source_info *i, int is_last)
-	{
-		if (is_last < 0) {
-	        qDebug("Failed to get source information: %s", pa_strerror(pa_context_errno(c)));
-	        mainloop.quit(1);
-	        return;
-	    }
-
-		if (is_last) {
-	        complete_action();
-	        return;
-	    }
-
-		Q_ASSERT(i);
-	}
-
-	static void context_drain_complete(pa_context *c, void *userdata) {
-		Q_UNUSED(userdata);
-	    pa_context_disconnect(c);
-	}
-
-	void drain(void) {
-	    pa_operation *o;
-
-	    if (!(o = pa_context_drain(context, context_drain_complete, NULL)))
-	        pa_context_disconnect(context);
-	    else
-	        pa_operation_unref(o);
-	}
-
-	void complete_action(void) {
-	    Q_ASSERT(actions > 0);
-
-	    if (!(--actions))
-	        drain();
-	}
+	void onStateCallback();
+	static void context_drain_complete(pa_context *c, void *userdata);
+	void drain(void);
+	void complete_action(void);
 
 public:
 
@@ -172,45 +69,192 @@ public:
 	QString server;
 	PaMainloop mainloop;
 	QList<PaDeferredTask*> taskQueue;
+	int ipcFd; // event file descriptor
 
-	PaContext(const QString &server = QString::null) :
-	    ready(false),
-	    server(server)
-	{
-		proplist = pa_proplist_new();
+	PaContext(int fd, const QString &server = QString::null);
+	~PaContext();
 
-		if (!(context = pa_context_new_with_proplist(mainloop.api(), NULL, proplist))) {
-			qDebug("pa_context_new() failed.");
-			return;
-		}
 
-		pa_context_set_state_callback(context, context_state_callback, this);
-	    if (pa_context_connect(context, server.toLocal8Bit().data(), PA_CONTEXT_NOFLAGS, NULL) < 0) {
-	        qDebug("pa_context_connect() failed: %s", pa_strerror(pa_context_errno(context)));
-	        return;
-	    }
 
-		mainloop.run();
-	}
-
-	~PaContext()
-	{
-		if (context)
-	        pa_context_unref(context);
-
-		if (proplist)
-	        pa_proplist_free(proplist);
-	}
-
-	void tryExec(PaDeferredTask *t)
-	{
-		if (ready) {
-			t->run();
-		} else {
-			taskQueue.append(t);
-		}
-	}
+public slots:
+	void newTask(void*);
+	void init();
 };
+
+
+class PaCtlPrivate
+{
+public:
+	PaCtlPrivate();
+	~PaCtlPrivate();
+
+	QThread contextThread;
+	int ipcFd;
+	PaContext *context;
+};
+
+
+//------------------------------------------------------------
+// PaMainloop
+//------------------------------------------------------------
+PaMainloop::PaMainloop()
+{
+	if (!(mainloop = pa_mainloop_new())) {
+		qDebug("pa_mainloop_new() failed.");
+		return;
+	}
+
+	api = pa_mainloop_get_api(mainloop);
+
+//	Q_ASSERT(pa_signal_init(mainloop_api) == 0);
+//    pa_signal_new(SIGINT, exit_signal_callback, NULL);
+//    pa_signal_new(SIGTERM, exit_signal_callback, NULL);
+//    pa_disable_sigpipe();
+
+}
+
+PaMainloop::~PaMainloop()
+{
+	if (mainloop) {
+		pa_signal_done();
+		pa_mainloop_free(mainloop);
+	}
+}
+
+void PaMainloop::quit(int ret) {
+	Q_ASSERT(api);
+	api->quit(api, ret);
+}
+
+void PaMainloop::run()
+{
+	int ret = 1;
+
+	if (pa_mainloop_run(mainloop, &ret) < 0) {
+		qDebug("pa_mainloop_run() failed.");
+		return;
+	}
+}
+
+
+//------------------------------------------------------------
+// PaContext
+//------------------------------------------------------------
+void PaContext::context_state_callback(pa_context *c, void *userdata)
+{
+	Q_ASSERT(c);
+	Q_ASSERT(userdata);
+	static_cast<PaContext*>(userdata)->onStateCallback();
+}
+
+void PaContext::processIPC(pa_mainloop_api *mainloop_api, pa_io_event *stdio_event,
+						   int fd, pa_io_event_flags_t f, void *userdata)
+{
+	Q_UNUSED(mainloop_api)
+	Q_UNUSED(stdio_event)
+	Q_UNUSED(f)
+	Q_UNUSED(userdata)
+	char buf[8];
+	read(fd, buf, 8);
+	qDebug() << "process ipc" << QThread::currentThread();
+	QCoreApplication::processEvents();
+}
+
+void PaContext::onStateCallback()
+{
+
+	switch (pa_context_get_state(context)) {
+		case PA_CONTEXT_CONNECTING:
+		case PA_CONTEXT_AUTHORIZING:
+		case PA_CONTEXT_SETTING_NAME:
+			break;
+
+		case PA_CONTEXT_READY:
+			ready = true;
+			while (taskQueue.size()) {
+				taskQueue.takeFirst()->run();
+			}
+			break;
+
+		case PA_CONTEXT_TERMINATED:
+			mainloop.quit(0);
+			break;
+
+		case PA_CONTEXT_FAILED:
+		default:
+			qDebug("Connection failure: %s", pa_strerror(pa_context_errno(context)));
+			mainloop.quit(1);
+	}
+
+}
+
+void PaContext::context_drain_complete(pa_context *c, void *userdata) {
+	Q_UNUSED(userdata);
+	pa_context_disconnect(c);
+}
+
+void PaContext::drain(void) {
+	pa_operation *o;
+
+	if (!(o = pa_context_drain(context, context_drain_complete, NULL)))
+		pa_context_disconnect(context);
+	else
+		pa_operation_unref(o);
+}
+
+void PaContext::complete_action(void) {
+	Q_ASSERT(actions > 0);
+
+	if (!(--actions))
+		drain();
+}
+
+
+PaContext::PaContext(int fd, const QString &server) :
+	ready(false),
+	server(server),
+	ipcFd(fd)
+{}
+
+
+PaContext::~PaContext()
+{
+	if (context)
+		pa_context_unref(context);
+
+	if (proplist)
+		pa_proplist_free(proplist);
+}
+
+void PaContext::newTask(void *t)
+{
+	PaDeferredTask *task = (PaDeferredTask *)t;
+	if (ready) {
+		task->run();
+	} else {
+		taskQueue.append(task);
+	}
+}
+
+void PaContext::init()
+{
+	proplist = pa_proplist_new();
+
+	if (!(context = pa_context_new_with_proplist(mainloop.api, NULL, proplist))) {
+		qDebug("pa_context_new() failed.");
+		return;
+	}
+
+	pa_context_set_state_callback(context, context_state_callback, this);
+	if (pa_context_connect(context, server.isEmpty()? NULL : server.toLocal8Bit().data(), PA_CONTEXT_NOFLAGS, NULL) < 0) {
+		qDebug("pa_context_connect() failed: %s", pa_strerror(pa_context_errno(context)));
+		return;
+	}
+
+	mainloop.api->io_new(mainloop.api, ipcFd, PA_IO_EVENT_INPUT, processIPC, this);
+
+	mainloop.run();
+}
 
 
 
@@ -220,11 +264,11 @@ public:
 // PaDeferredTask
 //------------------------------------------------------------
 PaDeferredTask::PaDeferredTask(PaTask *task) :
+    ctl(static_cast<PaCtl*>(task->parent())->d),
 	op(0),
 	errorCode(0),
 	task(task)
 {
-	context = static_cast<PaCtl*>(task->parent())->context();
 }
 
 PaDeferredTask::~PaDeferredTask()
@@ -273,7 +317,10 @@ PaTask::~PaTask()
 
 void PaTask::run()
 {
-	d->context->tryExec(d);
+	qDebug() << "task run" << QThread::currentThread();
+	QMetaObject::invokeMethod(d->ctl->context, "newTask", Qt::QueuedConnection, Q_ARG(void*, d));
+	quint64 cnt = 1;
+	write(d->ctl->ipcFd, &cnt, 8);
 }
 
 
@@ -292,12 +339,13 @@ public:
 	void onSourceInfo(const pa_source_info *i, int is_last)
 	{
 		if (is_last < 0) {
-			setError(pa_context_errno(context->context));
+			setError(pa_context_errno(ctl->context->context));
 			return;
 		}
 
 		if (is_last) {
 			setSuccess();
+			return;
 		}
 
 		PaTaskSources::Source s;
@@ -316,7 +364,7 @@ public:
 
 	void run()
 	{
-		op = pa_context_get_source_info_list(context->context, get_source_info_callback, this);
+		op = pa_context_get_source_info_list(ctl->context->context, get_source_info_callback, this);
 	}
 
 };
@@ -332,24 +380,23 @@ QList<PaTaskSources::Source> PaTaskSources::sources() const
 	return static_cast<PaTaskSourcesPrivate*>(d)->sources;
 }
 
+
 //------------------------------------------------------------
 // PaCtl
 //------------------------------------------------------------
-class PaCtlPrivate
+PaCtlPrivate::PaCtlPrivate()
 {
-public:
-	PaCtlPrivate()
-	{
-		context = new PaContext();
-	}
+	ipcFd = eventfd(0, 0);
+	context = new PaContext(ipcFd);
+	context->moveToThread(&contextThread);
+	contextThread.start();
+	QMetaObject::invokeMethod(context, "init", Qt::QueuedConnection);
+}
 
-	~PaCtlPrivate()
-	{
-		delete context;
-	}
-
-	PaContext *context;
-};
+PaCtlPrivate::~PaCtlPrivate()
+{
+	delete context;
+}
 
 
 
@@ -361,7 +408,4 @@ PaCtl::PaCtl(QObject *parent) :
 
 }
 
-PaContext *PaCtl::context()
-{
-	return d->context;
-}
+#include "pulsectl.moc"

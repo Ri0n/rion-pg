@@ -3,8 +3,7 @@
 
 #include <QObject>
 
-class PaCtlPrivate;
-class PaContext;
+
 class PaCtl;
 
 class PaDeferredTask;
@@ -43,14 +42,13 @@ public:
 	QList<Source> sources() const;
 };
 
-
+class PaCtlPrivate;
 class PaCtl : public QObject
 {
 	Q_OBJECT
 public:
 
 	explicit PaCtl(QObject *parent = 0);
-	PaContext *context();
 
 signals:
 
@@ -58,6 +56,7 @@ public slots:
 
 private:
 	friend class PaCtlPrivate;
+	friend class PaDeferredTask;
 	class PaCtlPrivate *d;
 };
 

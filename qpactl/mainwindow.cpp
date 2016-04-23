@@ -4,6 +4,7 @@
 #include "ui_mainwindow.h"
 
 #include "pulsectl.h"
+#include <unistd.h>
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -15,6 +16,8 @@ MainWindow::MainWindow(QWidget *parent) :
 
 	PaTaskSources *t = new PaTaskSources(ctl);
 	connect(t, SIGNAL(ready()), SLOT(sourcesFinihed()));
+	sleep(1); // Hack!!!
+	t->run();
 
 }
 
