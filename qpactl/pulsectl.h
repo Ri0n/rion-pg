@@ -42,6 +42,22 @@ public:
 	QList<Source> sources() const;
 };
 
+class PaTaskSinks : public PaTask
+{
+	Q_OBJECT
+
+public:
+	PaTaskSinks(PaCtl *parent = 0);
+
+	struct Sink {
+		QString id;
+		QString description;
+		QString monitorId; // id of monitor (a source we mirror into)
+	};
+
+	QList<Sink> sinks() const;
+};
+
 class PaCtlPrivate;
 class PaCtl : public QObject
 {
@@ -49,6 +65,7 @@ class PaCtl : public QObject
 public:
 
 	explicit PaCtl(QObject *parent = 0);
+	~PaCtl();
 
 signals:
 

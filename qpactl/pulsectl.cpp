@@ -68,7 +68,6 @@ public:
 
 	QString server;
 	PaMainloop mainloop;
-	QList<PaDeferredTask*> taskQueue;
 	int ipcFd; // event file descriptor
 
 	PaContext(int fd, const QString &server = QString::null);
@@ -79,18 +78,29 @@ public:
 public slots:
 	void newTask(void*);
 	void init();
+	void deinit();
+
+signals:
+	void contextReady();
 };
 
 
-class PaCtlPrivate
+class PaCtlPrivate : public QObject
 {
+	Q_OBJECT
+	void kickContext();
 public:
-	PaCtlPrivate();
-	~PaCtlPrivate();
-
+	bool contextReady;
 	QThread contextThread;
 	int ipcFd;
 	PaContext *context;
+	QList<PaDeferredTask*> tasksQueue;
+
+	PaCtlPrivate();
+	~PaCtlPrivate();
+	void tryExec(PaDeferredTask *task);
+public slots:
+	void handleContextReady();
 };
 
 
@@ -156,7 +166,6 @@ void PaContext::processIPC(pa_mainloop_api *mainloop_api, pa_io_event *stdio_eve
 	Q_UNUSED(userdata)
 	char buf[8];
 	read(fd, buf, 8);
-	qDebug() << "process ipc" << QThread::currentThread();
 	QCoreApplication::processEvents();
 }
 
@@ -171,9 +180,9 @@ void PaContext::onStateCallback()
 
 		case PA_CONTEXT_READY:
 			ready = true;
-			while (taskQueue.size()) {
-				taskQueue.takeFirst()->run();
-			}
+			emit contextReady();
+			QCoreApplication::processEvents();
+
 			break;
 
 		case PA_CONTEXT_TERMINATED:
@@ -229,11 +238,7 @@ PaContext::~PaContext()
 void PaContext::newTask(void *t)
 {
 	PaDeferredTask *task = (PaDeferredTask *)t;
-	if (ready) {
-		task->run();
-	} else {
-		taskQueue.append(task);
-	}
+	task->run();
 }
 
 void PaContext::init()
@@ -255,6 +260,12 @@ void PaContext::init()
 
 	mainloop.run();
 }
+
+void PaContext::deinit()
+{
+	mainloop.quit(0);
+}
+
 
 
 
@@ -317,10 +328,7 @@ PaTask::~PaTask()
 
 void PaTask::run()
 {
-	qDebug() << "task run" << QThread::currentThread();
-	QMetaObject::invokeMethod(d->ctl->context, "newTask", Qt::QueuedConnection, Q_ARG(void*, d));
-	quint64 cnt = 1;
-	write(d->ctl->ipcFd, &cnt, 8);
+	d->ctl->tryExec(d);
 }
 
 
@@ -382,22 +390,108 @@ QList<PaTaskSources::Source> PaTaskSources::sources() const
 
 
 //------------------------------------------------------------
+// PaTaskSinks
+//------------------------------------------------------------
+class PaTaskSinksPrivate : public PaDeferredTask
+{
+public:
+	QList<PaTaskSinks::Sink> sinks;
+
+	PaTaskSinksPrivate(PaTask *task) :
+	    PaDeferredTask(task) {}
+
+	void onSinkInfo(const pa_sink_info *i, int is_last)
+	{
+		if (is_last < 0) {
+			setError(pa_context_errno(ctl->context->context));
+			return;
+		}
+
+		if (is_last) {
+			setSuccess();
+			return;
+		}
+
+		PaTaskSinks::Sink s;
+		s.id = QString::fromLatin1(i->name);
+		s.description = QString::fromLocal8Bit(i->description);
+		s.monitorId = QString::fromLatin1(i->monitor_source_name);
+
+		sinks.append(s);
+	}
+
+	static void get_sink_info_callback(pa_context *c, const pa_sink_info *i, int is_last, void *userdata)
+	{
+		Q_UNUSED(c);
+		static_cast<PaTaskSinksPrivate*>(userdata)->onSinkInfo(i, is_last);
+	}
+
+	void run()
+	{
+		op = pa_context_get_sink_info_list(ctl->context->context, get_sink_info_callback, this);
+	}
+
+};
+
+PaTaskSinks::PaTaskSinks(PaCtl *parent) :
+    PaTask(parent)
+{
+	d = new PaTaskSinksPrivate(this);
+}
+
+QList<PaTaskSinks::Sink> PaTaskSinks::sinks() const
+{
+	return static_cast<PaTaskSinksPrivate*>(d)->sinks;
+}
+
+
+//------------------------------------------------------------
 // PaCtl
 //------------------------------------------------------------
-PaCtlPrivate::PaCtlPrivate()
+PaCtlPrivate::PaCtlPrivate() :
+    contextReady(false)
 {
 	ipcFd = eventfd(0, 0);
 	context = new PaContext(ipcFd);
 	context->moveToThread(&contextThread);
+	connect(context, SIGNAL(contextReady()), SLOT(handleContextReady()));
 	contextThread.start();
 	QMetaObject::invokeMethod(context, "init", Qt::QueuedConnection);
 }
 
 PaCtlPrivate::~PaCtlPrivate()
 {
+	QMetaObject::invokeMethod(context, "deinit", Qt::QueuedConnection);
+	kickContext();
+	contextThread.exit(0);
+	contextThread.wait();
 	delete context;
 }
 
+void PaCtlPrivate::kickContext()
+{
+	quint64 cnt = 1;
+	write(ipcFd, &cnt, 8);
+}
+
+void PaCtlPrivate::tryExec(PaDeferredTask *task)
+{
+	if (contextReady) {
+		QMetaObject::invokeMethod(context, "newTask", Qt::QueuedConnection, Q_ARG(void*, task));
+		kickContext();
+	} else {
+		tasksQueue.append(task);
+	}
+}
+
+void PaCtlPrivate::handleContextReady()
+{
+	contextReady = true;
+	while (tasksQueue.size()) {
+		QMetaObject::invokeMethod(context, "newTask", Qt::QueuedConnection, Q_ARG(void*, tasksQueue.takeFirst()));
+	}
+	kickContext();
+}
 
 
 
@@ -406,6 +500,11 @@ PaCtl::PaCtl(QObject *parent) :
 	d(new PaCtlPrivate)
 {
 
+}
+
+PaCtl::~PaCtl()
+{
+	delete d;
 }
 
 #include "pulsectl.moc"

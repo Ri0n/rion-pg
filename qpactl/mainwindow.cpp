@@ -14,10 +14,12 @@ MainWindow::MainWindow(QWidget *parent) :
 
 	PaCtl *ctl = new PaCtl(this);
 
-	PaTaskSources *t = new PaTaskSources(ctl);
-	connect(t, SIGNAL(ready()), SLOT(sourcesFinihed()));
-	sleep(1); // Hack!!!
-	t->run();
+	PaTaskSources *t1 = new PaTaskSources(ctl);
+	connect(t1, SIGNAL(ready()), SLOT(sourcesFinihed()));
+	PaTaskSinks *t2 = new PaTaskSinks(ctl);
+	connect(t2, SIGNAL(ready()), SLOT(sinksFinihed()));
+	t1->run();
+	t2->run();
 
 }
 
@@ -29,8 +31,22 @@ MainWindow::~MainWindow()
 void MainWindow::sourcesFinihed()
 {
 	QList<PaTaskSources::Source> sources = ((PaTaskSources *)sender())->sources();
+	QString ts;
 
 	foreach (const PaTaskSources::Source &s, sources) {
-		qDebug() << s.id << s.description << s.monitorId;
+		ts += (QString("Source: ") + s.id + " " + s.description + " " + s.monitorId + " " + "\n");
 	}
+
+	ui->teLog->appendPlainText(QString("Sources:\n") + ts + "\n");
+}
+
+void MainWindow::sinksFinihed()
+{
+	QList<PaTaskSinks::Sink> sinks = ((PaTaskSinks *)sender())->sinks();
+	QString ts;
+	foreach (const PaTaskSinks::Sink &s, sinks) {
+		ts += (QString("Sink: ") + s.id + " " + s.description + " " + s.monitorId + " " + "\n");
+	}
+
+	ui->teLog->appendPlainText(QString("Sinks:\n") + ts + "\n");
 }
