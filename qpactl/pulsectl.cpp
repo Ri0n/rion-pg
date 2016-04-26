@@ -1,3 +1,22 @@
+/***
+  Pulseaudio Qt wrapper
+
+  Copyright 2016 Sergey Il'inykh <rion4ik@gmail.com>
+
+  PulseAudio is free software; you can redistribute it and/or modify
+  it under the terms of the GNU Lesser General Public License as published
+  by the Free Software Foundation; either version 2.1 of the License,
+  or (at your option) any later version.
+
+  PulseAudio is distributed in the hope that it will be useful, but
+  WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+  General Public License for more details.
+
+  You should have received a copy of the GNU Lesser General Public License
+  along with PulseAudio; if not, see <http://www.gnu.org/licenses/>.
+***/
+
 #include <pulse/introspect.h>
 #include <pulse/mainloop.h>
 #include <pulse/mainloop-signal.h>
@@ -9,6 +28,7 @@
 #include <QThread>
 #include <QCoreApplication>
 #include <QDebug>
+#include <QMetaMethod>
 
 #include "pulsectl.h"
 
@@ -51,13 +71,12 @@ private:
 	static void context_state_callback(pa_context *c, void *userdata);
 	static void processIPC(pa_mainloop_api *mainloop_api, pa_io_event *stdio_event,
 	                           int fd, pa_io_event_flags_t f, void *userdata);
+	static void context_drain_complete(pa_context *c, void *userdata);
 
 protected:
 
 	void onStateCallback();
-	static void context_drain_complete(pa_context *c, void *userdata);
-	void drain(void);
-	void complete_action(void);
+	void drain();
 
 public:
 
@@ -82,6 +101,7 @@ public slots:
 
 signals:
 	void contextReady();
+	void contextTerminated();
 };
 
 
@@ -95,12 +115,14 @@ public:
 	int ipcFd;
 	PaContext *context;
 	QList<PaDeferredTask*> tasksQueue;
+	QMetaMethod newTaskMethod;
 
 	PaCtlPrivate();
 	~PaCtlPrivate();
 	void tryExec(PaDeferredTask *task);
 public slots:
 	void handleContextReady();
+	void handleContextTerminated();
 };
 
 
@@ -181,20 +203,19 @@ void PaContext::onStateCallback()
 		case PA_CONTEXT_READY:
 			ready = true;
 			emit contextReady();
-			QCoreApplication::processEvents();
-
 			break;
 
 		case PA_CONTEXT_TERMINATED:
 			mainloop.quit(0);
+			emit contextTerminated();
 			break;
 
 		case PA_CONTEXT_FAILED:
 		default:
 			qDebug("Connection failure: %s", pa_strerror(pa_context_errno(context)));
 			mainloop.quit(1);
+			emit contextTerminated();
 	}
-
 }
 
 void PaContext::context_drain_complete(pa_context *c, void *userdata) {
@@ -202,7 +223,7 @@ void PaContext::context_drain_complete(pa_context *c, void *userdata) {
 	pa_context_disconnect(c);
 }
 
-void PaContext::drain(void) {
+void PaContext::drain() {
 	pa_operation *o;
 
 	if (!(o = pa_context_drain(context, context_drain_complete, NULL)))
@@ -211,19 +232,21 @@ void PaContext::drain(void) {
 		pa_operation_unref(o);
 }
 
-void PaContext::complete_action(void) {
-	Q_ASSERT(actions > 0);
-
-	if (!(--actions))
-		drain();
-}
-
-
 PaContext::PaContext(int fd, const QString &server) :
 	ready(false),
 	server(server),
 	ipcFd(fd)
-{}
+{
+	proplist = pa_proplist_new();
+
+	if (!(context = pa_context_new_with_proplist(mainloop.api, NULL, proplist))) {
+		qDebug("pa_context_new() failed.");
+		return;
+	}
+
+	pa_context_set_state_callback(context, context_state_callback, this);
+	mainloop.api->io_new(mainloop.api, ipcFd, PA_IO_EVENT_INPUT, processIPC, this);
+}
 
 
 PaContext::~PaContext()
@@ -243,27 +266,16 @@ void PaContext::newTask(void *t)
 
 void PaContext::init()
 {
-	proplist = pa_proplist_new();
-
-	if (!(context = pa_context_new_with_proplist(mainloop.api, NULL, proplist))) {
-		qDebug("pa_context_new() failed.");
-		return;
-	}
-
-	pa_context_set_state_callback(context, context_state_callback, this);
 	if (pa_context_connect(context, server.isEmpty()? NULL : server.toLocal8Bit().data(), PA_CONTEXT_NOFLAGS, NULL) < 0) {
 		qDebug("pa_context_connect() failed: %s", pa_strerror(pa_context_errno(context)));
 		return;
 	}
-
-	mainloop.api->io_new(mainloop.api, ipcFd, PA_IO_EVENT_INPUT, processIPC, this);
-
 	mainloop.run();
 }
 
 void PaContext::deinit()
 {
-	mainloop.quit(0);
+	drain();
 }
 
 
@@ -453,8 +465,12 @@ PaCtlPrivate::PaCtlPrivate() :
 {
 	ipcFd = eventfd(0, 0);
 	context = new PaContext(ipcFd);
+	int ntIndex = context->metaObject()->indexOfSlot(QMetaObject::normalizedSignature("newTask(void*)"));
+	newTaskMethod = context->metaObject()->method(ntIndex);
+
 	context->moveToThread(&contextThread);
 	connect(context, SIGNAL(contextReady()), SLOT(handleContextReady()));
+	connect(context, SIGNAL(contextTerminated()), SLOT(handleContextTerminated()));
 	contextThread.start();
 	QMetaObject::invokeMethod(context, "init", Qt::QueuedConnection);
 }
@@ -466,6 +482,8 @@ PaCtlPrivate::~PaCtlPrivate()
 	contextThread.exit(0);
 	contextThread.wait();
 	delete context;
+	// we don't care aout task queue here. just allow Qt do its job with parent objects
+	// in either case deleting this object is supposed to be on app termination.
 }
 
 void PaCtlPrivate::kickContext()
@@ -477,7 +495,7 @@ void PaCtlPrivate::kickContext()
 void PaCtlPrivate::tryExec(PaDeferredTask *task)
 {
 	if (contextReady) {
-		QMetaObject::invokeMethod(context, "newTask", Qt::QueuedConnection, Q_ARG(void*, task));
+		newTaskMethod.invoke(context, Qt::QueuedConnection, Q_ARG(void*, task));
 		kickContext();
 	} else {
 		tasksQueue.append(task);
@@ -488,9 +506,16 @@ void PaCtlPrivate::handleContextReady()
 {
 	contextReady = true;
 	while (tasksQueue.size()) {
-		QMetaObject::invokeMethod(context, "newTask", Qt::QueuedConnection, Q_ARG(void*, tasksQueue.takeFirst()));
+		newTaskMethod.invoke(context, Qt::QueuedConnection, Q_ARG(void*, tasksQueue.takeFirst()));
 	}
 	kickContext();
+}
+
+void PaCtlPrivate::handleContextTerminated()
+{
+	while (tasksQueue.size()) {
+		tasksQueue.takeFirst()->setError(PA_ERR_CONNECTIONTERMINATED); // we have refused as well btw. we can check mainloop exit code for that
+	}
 }
 
 
