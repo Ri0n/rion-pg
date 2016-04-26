@@ -18,8 +18,11 @@ MainWindow::MainWindow(QWidget *parent) :
 	connect(t1, SIGNAL(ready()), SLOT(sourcesFinihed()));
 	PaTaskSinks *t2 = new PaTaskSinks(ctl);
 	connect(t2, SIGNAL(ready()), SLOT(sinksFinihed()));
+	PaTaskServerInfo *t3 = new PaTaskServerInfo(ctl);
+	connect(t3, SIGNAL(ready()), SLOT(serverInfoFinihed()));
 	t1->run();
 	t2->run();
+	t3->run();
 
 }
 
@@ -49,4 +52,14 @@ void MainWindow::sinksFinihed()
 	}
 
 	ui->teLog->appendPlainText(QString("Sinks:\n") + ts + "\n");
+}
+
+void MainWindow::serverInfoFinihed()
+{
+	const PaTaskServerInfo::ServerInfo &info = ((PaTaskServerInfo *)sender())->info();
+	QString s = "Server info:\n";
+	s += ("Default sink: " + info.defaultSinkName + "\n");
+	s += ("Default source: " + info.defaultSourceName + "\n");
+
+	ui->teLog->appendPlainText(s);
 }

@@ -18,6 +18,7 @@ public:
 private slots:
 	void sourcesFinihed();
 	void sinksFinihed();
+	void serverInfoFinihed();
 private:
 	Ui::MainWindow *ui;
 };

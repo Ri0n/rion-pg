@@ -458,6 +458,56 @@ QList<PaTaskSinks::Sink> PaTaskSinks::sinks() const
 
 
 //------------------------------------------------------------
+// PaTaskServerInfo
+//------------------------------------------------------------
+class PaTaskServerInfoPrivate : public PaDeferredTask
+{
+public:
+	PaTaskServerInfo::ServerInfo info;
+
+	PaTaskServerInfoPrivate(PaTask *task) :
+	    PaDeferredTask(task) {}
+
+	static void get_server_info_callback(pa_context *c, const pa_server_info *i, void *userdata) {
+		Q_UNUSED(c)
+		static_cast<PaTaskServerInfoPrivate*>(userdata)->onServerInfo(i);
+	}
+
+	void onServerInfo(const pa_server_info *i)
+	{
+		if (!i) {
+			qWarning("Failed to get server information: %s", pa_strerror(pa_context_errno(ctl->context->context)));
+			setError(pa_context_errno(ctl->context->context));
+			return;
+		}
+
+		info.hostName = QString::fromLocal8Bit(i->host_name);
+		info.serverVersion = QString::fromLatin1(i->server_version);
+		info.serverName = QString::fromLocal8Bit(i->server_name);
+		info.defaultSinkName = QString::fromLatin1(i->default_sink_name);
+		info.defaultSourceName = QString::fromLatin1(i->default_source_name);
+		setSuccess();
+	}
+
+	void run()
+	{
+		op = pa_context_get_server_info(ctl->context->context, get_server_info_callback, this);
+	}
+};
+
+PaTaskServerInfo::PaTaskServerInfo(PaCtl *parent) :
+    PaTask(parent)
+{
+	d = new PaTaskServerInfoPrivate(this);
+}
+
+const PaTaskServerInfo::ServerInfo &PaTaskServerInfo::info() const
+{
+	return static_cast<PaTaskServerInfoPrivate*>(d)->info;
+}
+
+
+//------------------------------------------------------------
 // PaCtl
 //------------------------------------------------------------
 PaCtlPrivate::PaCtlPrivate() :

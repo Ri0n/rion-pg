@@ -77,6 +77,24 @@ public:
 	QList<Sink> sinks() const;
 };
 
+class PaTaskServerInfo : public PaTask
+{
+	Q_OBJECT
+
+public:
+	PaTaskServerInfo(PaCtl *parent = 0);
+
+	struct ServerInfo {
+		QString hostName;
+		QString serverVersion;
+		QString serverName;
+		QString defaultSinkName;
+		QString defaultSourceName;
+	};
+
+	const ServerInfo &info() const;
+};
+
 class PaCtlPrivate;
 class PaCtl : public QObject
 {
