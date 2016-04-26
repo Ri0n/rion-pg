@@ -513,6 +513,8 @@ void PaCtlPrivate::handleContextReady()
 
 void PaCtlPrivate::handleContextTerminated()
 {
+	// Notice this method won't be called in case of deletion of PaCtlPrivate object
+	// So it's only in case something wrong pulseaudio connection
 	while (tasksQueue.size()) {
 		tasksQueue.takeFirst()->setError(PA_ERR_CONNECTIONTERMINATED); // we have refused as well btw. we can check mainloop exit code for that
 	}
