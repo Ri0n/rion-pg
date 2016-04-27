@@ -105,6 +105,8 @@ public:
 	~PaCtl();
 
 signals:
+	void sourcesChanged();
+	void sinksChanged();
 
 public slots:
 

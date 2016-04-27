@@ -21,6 +21,7 @@
 #include <pulse/mainloop.h>
 #include <pulse/mainloop-signal.h>
 #include <pulse/error.h>
+#include <pulse/subscribe.h>
 #include <sys/eventfd.h>
 #include <unistd.h>
 
@@ -72,11 +73,13 @@ private:
 	static void processIPC(pa_mainloop_api *mainloop_api, pa_io_event *stdio_event,
 	                           int fd, pa_io_event_flags_t f, void *userdata);
 	static void context_drain_complete(pa_context *c, void *userdata);
+	static void context_subscribe_callback(pa_context *c, pa_subscription_event_type_t t, uint32_t idx, void *userdata);
 
 protected:
 
 	void onStateCallback();
 	void drain();
+	void onSubscribeCallback(pa_subscription_event_type_t t, uint32_t idx);
 
 public:
 
@@ -92,8 +95,6 @@ public:
 	PaContext(int fd, const QString &server = QString::null);
 	~PaContext();
 
-
-
 public slots:
 	void newTask(void*);
 	void init();
@@ -102,6 +103,8 @@ public slots:
 signals:
 	void contextReady();
 	void contextTerminated();
+	void sourcesChanged();
+	void sinksChanged();
 };
 
 
@@ -110,6 +113,7 @@ class PaCtlPrivate : public QObject
 	Q_OBJECT
 	void kickContext();
 public:
+	PaCtl *q;
 	bool contextReady;
 	QThread contextThread;
 	int ipcFd;
@@ -117,7 +121,7 @@ public:
 	QList<PaDeferredTask*> tasksQueue;
 	QMetaMethod newTaskMethod;
 
-	PaCtlPrivate();
+	PaCtlPrivate(PaCtl *q);
 	~PaCtlPrivate();
 	void tryExec(PaDeferredTask *task);
 public slots:
@@ -179,6 +183,22 @@ void PaContext::context_state_callback(pa_context *c, void *userdata)
 	static_cast<PaContext*>(userdata)->onStateCallback();
 }
 
+void PaContext::context_subscribe_callback(pa_context *c, pa_subscription_event_type_t t, uint32_t idx, void *userdata) {
+	Q_ASSERT(c);
+	static_cast<PaContext*>(userdata)->onSubscribeCallback(t ,idx);
+}
+
+void PaContext::onSubscribeCallback(pa_subscription_event_type_t t, uint32_t idx)
+{
+	Q_UNUSED(idx)
+	if ((t & PA_SUBSCRIPTION_EVENT_FACILITY_MASK) == PA_SUBSCRIPTION_EVENT_SOURCE) {
+		emit sourcesChanged();
+	}
+	if ((t & PA_SUBSCRIPTION_EVENT_FACILITY_MASK) == PA_SUBSCRIPTION_EVENT_SINK) {
+		emit sinksChanged();
+	}
+}
+
 void PaContext::processIPC(pa_mainloop_api *mainloop_api, pa_io_event *stdio_event,
 						   int fd, pa_io_event_flags_t f, void *userdata)
 {
@@ -193,6 +213,7 @@ void PaContext::processIPC(pa_mainloop_api *mainloop_api, pa_io_event *stdio_eve
 
 void PaContext::onStateCallback()
 {
+	pa_operation *o;
 
 	switch (pa_context_get_state(context)) {
 		case PA_CONTEXT_CONNECTING:
@@ -202,6 +223,14 @@ void PaContext::onStateCallback()
 
 		case PA_CONTEXT_READY:
 			ready = true;
+
+			o = pa_context_subscribe(context,
+									 (pa_subscription_mask_t)(PA_SUBSCRIPTION_MASK_SINK|
+									 PA_SUBSCRIPTION_MASK_SOURCE),
+									 NULL,
+									 this);
+			pa_operation_unref(o);
+
 			emit contextReady();
 			break;
 
@@ -246,6 +275,8 @@ PaContext::PaContext(int fd, const QString &server) :
 
 	pa_context_set_state_callback(context, context_state_callback, this);
 	mainloop.api->io_new(mainloop.api, ipcFd, PA_IO_EVENT_INPUT, processIPC, this);
+
+	pa_context_set_subscribe_callback(context, context_subscribe_callback, NULL);
 }
 
 
@@ -510,7 +541,8 @@ const PaTaskServerInfo::ServerInfo &PaTaskServerInfo::info() const
 //------------------------------------------------------------
 // PaCtl
 //------------------------------------------------------------
-PaCtlPrivate::PaCtlPrivate() :
+PaCtlPrivate::PaCtlPrivate(PaCtl *q) :
+    q(q),
     contextReady(false)
 {
 	ipcFd = eventfd(0, 0);
@@ -521,6 +553,8 @@ PaCtlPrivate::PaCtlPrivate() :
 	context->moveToThread(&contextThread);
 	connect(context, SIGNAL(contextReady()), SLOT(handleContextReady()));
 	connect(context, SIGNAL(contextTerminated()), SLOT(handleContextTerminated()));
+	connect(context, SIGNAL(sinksChanged()), q, SIGNAL(sinksChanged()));
+	connect(context, SIGNAL(sourcesChanged()), q, SIGNAL(sourcesChanged()));
 	contextThread.start();
 	QMetaObject::invokeMethod(context, "init", Qt::QueuedConnection);
 }
@@ -574,7 +608,7 @@ void PaCtlPrivate::handleContextTerminated()
 
 PaCtl::PaCtl(QObject *parent) :
     QObject(parent),
-	d(new PaCtlPrivate)
+	d(new PaCtlPrivate(this))
 {
 
 }
