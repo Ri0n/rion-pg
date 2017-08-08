@@ -64,7 +64,7 @@ void* PoolAlloc(struct Pool *pool)
 
 void PoolFree(struct Pool *pool, void *addr)
 {
-    // TODO check alignment
+    // TODO check alignment to block boundry
     struct MemItem *item = (struct MemItem *)addr;
     item->next = pool->freeHead;
     pool->freeHead = item;
@@ -75,7 +75,7 @@ void PoolManagerInit(struct PoolManager *pm)
     pm->allMem = (char*)malloc(POOLSZ128 * 128 +
                         POOLSZ256 * 256 +
                         POOLSZ512 * 512 +
-                        POOLSZ1024 * 1024);
+                        POOLSZ1024 * 1024); // 8kb
     if (pm->allMem  == NULL) {
         printf("No mem O_o\n");
         exit(EXIT_FAILURE);
@@ -124,13 +124,19 @@ void PoolManagerFree(struct PoolManager *pm, void *addr)
 
 struct PoolManager *_defAllocator;
 
-#define myalloc(sz) ({ void *p = PoolManagerAlloc(_defAllocator, sz); \
-if (!p) printf("Alloc failed\n"); \
-else printf("Alloc success\n"); \
-fflush(stdout); \
-p; })
+static void* myalloc(size_t sz)
+{
+    void *p = PoolManagerAlloc(_defAllocator, sz);
+    if (!p) printf("Alloc failed\n");
+    else printf("Alloc success\n");
+    fflush(stdout);
+    return p;
+}
 
-#define myfree(p) PoolManagerFree(_defAllocator, p)
+static void myfree(void *p)
+{
+    PoolManagerFree(_defAllocator, p);
+}
 
 
 
