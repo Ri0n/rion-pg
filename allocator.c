@@ -1,125 +1,165 @@
 #include <stdio.h>
+#include <stdlib.h>
+#include <memory.h>
+
+#define POOLSZ128 16
+#define POOLSZ256 8
+#define POOLSZ512 4
+#define POOLSZ1024 2
 
 struct Pool;
 struct MemItem {
     struct MemItem *next;
-    struct MemItem *prev;
-    struct Pool *pool; // Instead of keepint it here we can check
-                       // memory boundries in up-level memory manager.
-    // it's pretty good aligned for the following data.
 };
 
 struct Pool {
+    size_t poolSz;
     size_t blockSz;
-    struct MemItem *free_head;
-    struct MemItem *busy_head;
+    char *startAddr;
+    struct MemItem *freeHead;
 };
+
+struct PoolManager {
+    char *allMem;
+    struct Pool pool128;
+    struct Pool pool256;
+    struct Pool pool512;
+    struct Pool pool1024;
+};
+
+struct PoolManager poolManager;
 
 int PoolInit(struct Pool *pool, char *buf, size_t bufSz, size_t blockSz)
 {
     size_t leftSz = bufSz;
-    struct MemItem *prev_item = NULL;
 
     if (buf == NULL || bufSz < blockSz || blockSz <= sizeof(struct MemItem)) {
         return -1; //shit happened
     }
+    pool->poolSz = bufSz;
     pool->blockSz = blockSz;
-    pool->busy_head = NULL;
+    pool->startAddr = buf;
+    pool->freeHead = NULL;
 
-    // init free blocks
+    // init free blocks. we can instead keep uninited blocks and slightly rewrite alloc method.
     while (leftSz >= blockSz) {
         struct MemItem *item = (struct MemItem *)buf;
-        item->prev = prev_item;
-        item->next = NULL;
-        item->pool = pool;
-        if (prev_item) {
-            prev_item->next = item;
-        }
-        prev_item = item;
+        item->next = pool->freeHead;
+        pool->freeHead = item;
         buf += blockSz;
         leftSz -= blockSz;
     }
-    pool->free_head = prev_item;
     return 0;
 }
 
 void* PoolAlloc(struct Pool *pool)
 {
-    // TODO lock heads here in case of multithreading
-    struct MemItem *item = pool->free_head;
-    if (item == NULL) {
-        return NULL; // crap. no mem
+    if (pool->freeHead) {
+        struct MemItem *item = pool->freeHead;
+        pool->freeHead = item->next;
+        return item;
     }
-    if (item->prev) {
-        item->prev->next = NULL;
-        pool->free_head = item->prev;
-    } else {
-        pool->free_head = NULL; // the last one
-    }
-    item->prev = pool->busy_head;
-    if (pool->busy_head) {
-        pool->busy_head->next = item;
-    }
-    pool->busy_head = item;
-    // TODO unlock heads
-    return (char*)item + sizeof(struct MemItem);
+    return NULL;
 }
 
-void PoolFree(void *addr)
+void PoolFree(struct Pool *pool, void *addr)
 {
-    // TODO lock
-    struct MemItem *item = (struct MemItem *)((char*)addr - sizeof(struct MemItem));
-    struct Pool *pool = item->pool;
-
-    if (item == pool->busy_head) {
-        pool->busy_head = item->prev;
-    }
-
-    // remove item from the lists
-    if (item->prev) {
-        item->prev->next = item->next;
-    }
-    if (item->next) {
-        item->next->prev = item->prev;
-    }
-
-    // insert to free list
-    item->next = NULL;
-    item->prev = pool->free_head;
-    if (item->prev) {
-        item->prev->next = item;
-    }
-    pool->free_head = item;
-    // TODO unlock.
+    // TODO check alignment
+    struct MemItem *item = (struct MemItem *)addr;
+    item->next = pool->freeHead;
+    pool->freeHead = item;
 }
 
-#define myalloc() ({ void *p = PoolAlloc(&pool); if (!p) printf("Alloc failed\n"); else printf("Alloc success\n"); fflush(stdout); p; })
+void PoolManagerInit(struct PoolManager *pm)
+{
+    pm->allMem = (char*)malloc(POOLSZ128 * 128 +
+                        POOLSZ256 * 256 +
+                        POOLSZ512 * 512 +
+                        POOLSZ1024 * 1024);
+    if (pm->allMem  == NULL) {
+        printf("No mem O_o\n");
+        exit(EXIT_FAILURE);
+    }
+    PoolInit(&pm->pool128, pm->allMem, POOLSZ128 * 128, 128);
+    PoolInit(&pm->pool256, pm->pool128.startAddr + pm->pool128.poolSz, POOLSZ256 * 256, 256);
+    PoolInit(&pm->pool512, pm->pool256.startAddr + pm->pool256.poolSz, POOLSZ512 * 512, 512);
+    PoolInit(&pm->pool1024, pm->pool512.startAddr + pm->pool512.poolSz, POOLSZ1024 * 1024, 1024);
+}
+
+void *PoolManagerAlloc(struct PoolManager *pm, size_t sz)
+{
+    if (sz <= 128) {
+        return PoolAlloc(&pm->pool128); // TODO we can have more memory in other pools if this one is ran out
+    }
+    if (sz <= 256) {
+        return PoolAlloc(&pm->pool256);
+    }
+    if (sz <= 512) {
+        return PoolAlloc(&pm->pool512);
+    }
+    if (sz <= 1024) {
+        return PoolAlloc(&pm->pool1024);
+    }
+    return NULL;
+}
+
+void PoolManagerFree(struct PoolManager *pm, void *addr)
+{
+    char *c = (char*)addr;
+    if ((c < pm->pool128.startAddr) || (c >= pm->pool1024.startAddr + pm->pool1024.blockSz)) {
+        exit(EXIT_FAILURE);
+    }
+    if (c < pm->pool256.startAddr) {
+        PoolFree(&pm->pool128, addr);
+    } else
+    if (c < pm->pool512.startAddr) {
+        PoolFree(&pm->pool256, addr);
+    } else
+    if (c < pm->pool1024.startAddr) {
+        PoolFree(&pm->pool512, addr);
+    } else
+    PoolFree(&pm->pool1024, addr);
+}
+
+
+struct PoolManager *_defAllocator;
+
+#define myalloc(sz) ({ void *p = PoolManagerAlloc(_defAllocator, sz); \
+if (!p) printf("Alloc failed\n"); \
+else printf("Alloc success\n"); \
+fflush(stdout); \
+p; })
+
+#define myfree(p) PoolManagerFree(_defAllocator, p)
+
+
 
 int main()
 {
-    struct Pool pool;
-    char buf[1024];
+    struct PoolManager pm;
+    _defAllocator = &pm;
+    PoolManagerInit(_defAllocator);
 
-    PoolInit(&pool, buf, sizeof(buf), 256);
-
-    char *p1 = (char*)myalloc();
-    char *p2 = (char*)myalloc();
-    char *p3 = (char*)myalloc();
-    char *p4 = (char*)myalloc();
-    char *p5 = (char*)myalloc();
+    char *p1 = (char*)myalloc(400);
+    char *p2 = (char*)myalloc(400);
+    char *p3 = (char*)myalloc(400);
+    char *p4 = (char*)myalloc(400);
+    char *p5 = (char*)myalloc(400);
     printf("4 success and 1 fail? good! it works!\n");
-    PoolFree(p2);
-    p2 = (char*)myalloc();
-    myalloc();
+    myfree(p2);
+    p2 = (char*)myalloc(400);
+    myalloc(400);
     printf("And now 1 success and 1 fail are expected!\n");
-    PoolFree(p1);
-    PoolFree(p4);
-    PoolFree(p3);
-    PoolFree(p2);
+    myfree(p1);
+    myfree(p4);
+    myfree(p3);
+    myfree(p2);
     printf("Now all are freed and we can allocate the 4 again. but 5th should fail\n");
-    p1 = (char*)myalloc();
-    p2 = (char*)myalloc();
-    p3 = (char*)myalloc();
-    p4 = (char*)myalloc();
-    p5 = (char*)myalloc();
+    p1 = (char*)myalloc(400);
+    p2 = (char*)myalloc(400);
+    p3 = (char*)myalloc(400);
+    p4 = (char*)myalloc(400);
+    p5 = (char*)myalloc(400);
+    printf("512 pool is empty now, but lets alloc from 256 pool\n");
+    p5 = (char*)myalloc(200);
 }
